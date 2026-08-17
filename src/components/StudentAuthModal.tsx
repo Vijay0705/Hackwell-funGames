@@ -409,31 +409,6 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
             </button>
           </form>
         )}
-
-        {/* Existing roster quick select */}
-        {existingStudents.length > 0 && (
-          <div className="pt-3 border-t-2 border-black space-y-2">
-            <p className="text-[10px] font-black uppercase text-slate-500">Quick Test - Select Registered Player:</p>
-            <div className="grid grid-cols-1 gap-1.5 max-h-28 overflow-y-auto">
-              {existingStudents.slice(0, 3).map((st) => (
-                <div
-                  key={st.id}
-                  onClick={() => {
-                    setLoginUsername(st.gamerTag);
-                    setAuthMode('login');
-                  }}
-                  className="p-1.5 bg-[#FFF9E6] hover:bg-[#FFB703] border-2 border-black cursor-pointer transition-colors flex items-center justify-between text-[11px] font-black uppercase"
-                >
-                  <div className="flex items-center gap-2">
-                    <img src={st.avatar} alt={st.gamerTag} className="w-5 h-5 border border-black object-cover" />
-                    <span>{st.fullName} (@{st.gamerTag})</span>
-                  </div>
-                  <span className="font-mono text-[#D90429]">{st.xp} XP</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

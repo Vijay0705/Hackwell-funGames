@@ -15,7 +15,7 @@
       "wins": 0,
       "losses": 0,
       "joinedAt": "2025-01-01",
-      "passwordHash": "664038e49b25120481bcc0d5ac0464b9:92fc49baab1501a0b4111b362abf7f5b91e6dac78f2de4129d810ff4894175692d746b22a9064b3571519f90f1b8cf2c9da126a4dee6d89f5fe7208b379ff098"
+      "passwordHash": "667fc57d9ddce521390fd943a5fc93bd:56dac3fcd44f2f055b9fee101a66ba3514cf90c7a0001a98e702f63a9c18fbb1a48e94bfb90431a33b1e9cf00a07747aa6193eb25def73e3f529e468e8f350f2"
     },
     {
       "id": "usr_arjun",
@@ -96,6 +96,60 @@
       "wins": 2,
       "losses": 2,
       "joinedAt": "2025-01-25"
+    },
+    {
+      "id": "usr_st_1786959004746_ztbu2",
+      "email": "nidthish_17@gamingarena.edu",
+      "passwordHash": "63a556bf8beda9ac9865d7f4c2a92e44:665cb8915c4cf7beb8f1e7a8cd45f6ac830a1f2f83a06388dfa5fff75f617ad6c7ded4a5dd276efbdb2d10cb45267b3f2f6ea2638ea2f94bf62daba012ee86fc",
+      "fullName": "nidthish",
+      "gamerTag": "nidthish_17",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=nidthish_17",
+      "department": "CSE",
+      "teamName": "techtitans",
+      "studentId": "techtitans",
+      "role": "student",
+      "xp": 0,
+      "rankTier": "Iron",
+      "gamesPlayed": 0,
+      "wins": 0,
+      "losses": 0,
+      "joinedAt": "2026-08-17"
+    },
+    {
+      "id": "usr_st_1786962058384_uunvj",
+      "email": "nidthish@gamingarena.edu",
+      "passwordHash": "eb27457a954d5565f59a738b841beef7:c11325c298b4cd58a10f94a1caf2f082737c37089a4f008c85372623883d3ac9591f81719a0af4cdcceb35786ed7eb2cc51a4f3059a4b50d445297f2b7ba98d6",
+      "fullName": "nidthish",
+      "gamerTag": "nidthish",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=nidthish",
+      "department": "CSE",
+      "teamName": "texhtitans",
+      "studentId": "texhtitans",
+      "role": "student",
+      "xp": 0,
+      "rankTier": "Iron",
+      "gamesPlayed": 0,
+      "wins": 0,
+      "losses": 0,
+      "joinedAt": "2026-08-17"
+    },
+    {
+      "id": "usr_st_1786963673272_xge6v",
+      "email": "nidthish_25@gamingarena.edu",
+      "passwordHash": "4b401735951cf2b5b8b3715211d02c2a:4279a488a0c0838c1a00e3bd8bc295952d8716d560f73bd86f5fba243ea2c3b68abed7b9a2a152c6c33c0ef4a68cb063b800bf0516c934eb01d33af4ceecd1dc",
+      "fullName": "nidthish",
+      "gamerTag": "Nidthish_25",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=Nidthish_25",
+      "department": "CSE",
+      "teamName": "dummy team",
+      "studentId": "dummy team",
+      "role": "student",
+      "xp": 0,
+      "rankTier": "Iron",
+      "gamesPlayed": 0,
+      "wins": 0,
+      "losses": 0,
+      "joinedAt": "2026-08-17"
     }
   ],
   "gameResults": [
@@ -280,6 +334,15 @@
       "createdAt": "2026-08-15T06:17:04.506Z"
     }
   ],
-  "sessions": {},
+  "sessions": {
+    "token_st_1786959004746_usr_st_1786959004746_ztbu2": "usr_st_1786959004746_ztbu2",
+    "token_st_1786962058384_usr_st_1786962058384_uunvj": "usr_st_1786962058384_uunvj",
+    "token_st_1786962083201_usr_st_1786959004746_ztbu2": "usr_st_1786959004746_ztbu2",
+    "token_st_1786962129650_usr_st_1786962058384_uunvj": "usr_st_1786962058384_uunvj",
+    "token_st_1786963410924_usr_admin_vijay": "usr_admin_vijay",
+    "token_st_1786963541095_usr_st_1786962058384_uunvj": "usr_st_1786962058384_uunvj",
+    "token_st_1786963557815_usr_st_1786962058384_uunvj": "usr_st_1786962058384_uunvj",
+    "token_st_1786963673273_usr_st_1786963673272_xge6v": "usr_st_1786963673272_xge6v"
+  },
   "adminResetTokens": {}
 }

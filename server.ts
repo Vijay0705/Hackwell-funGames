@@ -2,7 +2,18 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
-import mongoose from 'mongoose';
+import dotenv from 'dotenv';
+import { initializeApp, getApps } from 'firebase/app';
+import {
+  getFirestore,
+  setLogLevel,
+  doc,
+  getDoc,
+  setDoc,
+  deleteDoc,
+  collection,
+  getDocs
+} from 'firebase/firestore';
 import { createServer as createViteServer } from 'vite';
 import { User, GameResult, XpHistoryEntry, AuditLogEntry, RankTier, EventGame } from './src/types.js';
 import {
@@ -13,11 +24,11 @@ import {
   calculateRankTier
 } from './src/server/seedData.js';
 
-const PORT = 3000;
-const DB_FILE = path.join(process.cwd(), 'data_store.json');
+dotenv.config();
+setLogLevel('error');
 
-// Mongoose Connection Setup if MONGODB_URI is provided
-const MONGODB_URI = process.env.MONGODB_URI;
+const PORT = process.env.PORT || 3000;
+const BACKUP_DB_FILE = path.join(process.cwd(), 'data_store.json');
 
 // Password Hashing Helpers
 export function hashPassword(password: string): string {
@@ -27,7 +38,10 @@ export function hashPassword(password: string): string {
 }
 
 export function verifyPassword(password: string, combinedHash?: string): boolean {
-  if (!combinedHash || !combinedHash.includes(':')) return false;
+  if (!combinedHash) return false;
+  if (!combinedHash.includes(':')) {
+    return password === combinedHash;
+  }
   try {
     const [salt, originalHash] = combinedHash.split(':');
     const hash = crypto.scryptSync(password, salt, 64).toString('hex');
@@ -37,73 +51,38 @@ export function verifyPassword(password: string, combinedHash?: string): boolean
   }
 }
 
-// Mongoose Models for MongoDB
-const userSchema = new mongoose.Schema({
-  id: { type: String, required: true, unique: true },
-  googleId: String,
-  email: { type: String, required: true, unique: true },
-  passwordHash: String,
-  fullName: { type: String, required: true },
-  gamerTag: { type: String, required: true },
-  avatar: String,
-  department: String,
-  teamName: String,
-  studentId: String,
-  role: { type: String, required: true },
-  xp: { type: Number, default: 0 },
-  rankTier: { type: String, default: 'Iron' },
-  gamesPlayed: { type: Number, default: 0 },
-  wins: { type: Number, default: 0 },
-  losses: { type: Number, default: 0 },
-  joinedAt: String
-});
+// Cloud Firestore Database Configuration
+const firebaseConfig = {
+  apiKey: process.env.VITE_FIREBASE_API_KEY,
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.VITE_FIREBASE_APP_ID,
+  measurementId: process.env.VITE_FIREBASE_MEASUREMENT_ID
+};
 
-const gameResultSchema = new mongoose.Schema({
-  id: { type: String, required: true, unique: true },
-  userId: String,
-  userGamerTag: String,
-  userFullName: String,
-  game: String,
-  result: String,
-  moviesWon: Number,
-  xpAwarded: Number,
-  isVoided: Boolean,
-  voidReason: String,
-  recordedByAdmin: String,
-  createdAt: String
-});
+let firestoreDb: ReturnType<typeof getFirestore> | null = null;
+let isFirestoreAvailable = false;
 
-const xpHistorySchema = new mongoose.Schema({
-  id: { type: String, required: true, unique: true },
-  userId: String,
-  userGamerTag: String,
-  game: String,
-  result: String,
-  amount: Number,
-  performedBy: String,
-  createdAt: String
-});
+if (firebaseConfig.projectId && firebaseConfig.projectId !== 'your_project_id_here') {
+  try {
+    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+    firestoreDb = getFirestore(app);
+    isFirestoreAvailable = true;
+    console.log(`⚡ Connected to Cloud Firestore Primary Database (Project: ${firebaseConfig.projectId})`);
+  } catch (err) {
+    console.warn('Cloud Firestore initialization warning:', err);
+  }
+}
 
-const auditLogSchema = new mongoose.Schema({
-  id: { type: String, required: true, unique: true },
-  action: String,
-  performedBy: String,
-  details: String,
-  ipAddress: String,
-  createdAt: String
-});
-
-const sessionSchema = new mongoose.Schema({
-  token: { type: String, required: true, unique: true },
-  userId: { type: String, required: true },
-  createdAt: { type: Date, default: Date.now, expires: '7d' }
-});
-
-const UserModel = mongoose.models.User || mongoose.model('User', userSchema);
-const GameResultModel = mongoose.models.GameResult || mongoose.model('GameResult', gameResultSchema);
-const XpHistoryModel = mongoose.models.XpHistory || mongoose.model('XpHistory', xpHistorySchema);
-const AuditLogModel = mongoose.models.AuditLog || mongoose.model('AuditLog', auditLogSchema);
-const SessionModel = mongoose.models.Session || mongoose.model('Session', sessionSchema);
+function handleFirestoreError(err: any) {
+  const errMessage = String(err?.message || err?.code || err);
+  if (isFirestoreAvailable) {
+    isFirestoreAvailable = false;
+    console.warn(`\n⚠️ Cloud Firestore notice: ${errMessage}. Seamlessly switching to local backup storage (data_store.json).`);
+  }
+}
 
 interface DatabaseSchema {
   users: User[];
@@ -123,10 +102,20 @@ let db: DatabaseSchema = {
   adminResetTokens: {}
 };
 
-function loadDb() {
+// Save Local Backup to data_store.json
+function saveBackupDb() {
   try {
-    if (fs.existsSync(DB_FILE)) {
-      const data = fs.readFileSync(DB_FILE, 'utf-8');
+    fs.writeFileSync(BACKUP_DB_FILE, JSON.stringify(db, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Failed to save local backup file:', err);
+  }
+}
+
+// Load from Local Backup file
+function loadBackupDb() {
+  try {
+    if (fs.existsSync(BACKUP_DB_FILE)) {
+      const data = fs.readFileSync(BACKUP_DB_FILE, 'utf-8');
       const parsed = JSON.parse(data);
       if (parsed.users && parsed.gameResults) {
         db = {
@@ -138,19 +127,143 @@ function loadDb() {
           adminResetTokens: parsed.adminResetTokens || {}
         };
       }
-    } else {
-      saveDb();
     }
   } catch (err) {
-    console.error('Failed to load local DB file, using initial data:', err);
+    console.error('Failed to load backup DB file:', err);
   }
 }
 
-function saveDb() {
+// --- PRIMARY CLOUD FIRESTORE WRITERS ---
+
+async function syncUserToFirestore(user: User) {
+  if (!firestoreDb || !isFirestoreAvailable) return;
   try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf-8');
+    await setDoc(doc(firestoreDb, 'users', user.id), user, { merge: true });
   } catch (err) {
-    console.error('Failed to save DB file:', err);
+    handleFirestoreError(err);
+  }
+}
+
+async function syncGameResultToFirestore(result: GameResult) {
+  if (!firestoreDb || !isFirestoreAvailable) return;
+  try {
+    await setDoc(doc(firestoreDb, 'gameResults', result.id), result, { merge: true });
+  } catch (err) {
+    handleFirestoreError(err);
+  }
+}
+
+async function syncXpHistoryToFirestore(entry: XpHistoryEntry) {
+  if (!firestoreDb || !isFirestoreAvailable) return;
+  try {
+    await setDoc(doc(firestoreDb, 'xpHistory', entry.id), entry, { merge: true });
+  } catch (err) {
+    handleFirestoreError(err);
+  }
+}
+
+async function syncAuditLogToFirestore(entry: AuditLogEntry) {
+  if (!firestoreDb || !isFirestoreAvailable) return;
+  try {
+    await setDoc(doc(firestoreDb, 'auditLogs', entry.id), entry, { merge: true });
+  } catch (err) {
+    handleFirestoreError(err);
+  }
+}
+
+async function syncSessionToFirestore(token: string, userId: string) {
+  if (!firestoreDb || !isFirestoreAvailable) return;
+  try {
+    await setDoc(doc(firestoreDb, 'sessions', token), { token, userId, createdAt: new Date().toISOString() }, { merge: true });
+  } catch (err) {
+    handleFirestoreError(err);
+  }
+}
+
+async function deleteSessionFromFirestore(token: string) {
+  if (!firestoreDb || !isFirestoreAvailable) return;
+  try {
+    await deleteDoc(doc(firestoreDb, 'sessions', token));
+  } catch (err) {
+    handleFirestoreError(err);
+  }
+}
+
+// Load and populate from Cloud Firestore into cache and write backup
+async function loadDbFromFirestore() {
+  if (!firestoreDb || !isFirestoreAvailable) return;
+  try {
+    const usersSnap = await getDocs(collection(firestoreDb, 'users'));
+    if (!usersSnap.empty) {
+      const remoteUsers: User[] = [];
+      usersSnap.forEach((docSnap) => remoteUsers.push(docSnap.data() as User));
+      
+      remoteUsers.forEach((rUser) => {
+        const idx = db.users.findIndex((u) => u.id === rUser.id);
+        if (idx >= 0) db.users[idx] = rUser;
+        else db.users.push(rUser);
+      });
+    } else {
+      // Seed Firestore with initial records if empty
+      console.log('🌱 Seeding initial records into Cloud Firestore database...');
+      for (const u of db.users) {
+        await setDoc(doc(firestoreDb, 'users', u.id), u, { merge: true });
+      }
+      for (const r of db.gameResults) {
+        await setDoc(doc(firestoreDb, 'gameResults', r.id), r, { merge: true });
+      }
+      for (const x of db.xpHistory) {
+        await setDoc(doc(firestoreDb, 'xpHistory', x.id), x, { merge: true });
+      }
+      for (const a of db.auditLogs) {
+        await setDoc(doc(firestoreDb, 'auditLogs', a.id), a, { merge: true });
+      }
+    }
+
+    const resultsSnap = await getDocs(collection(firestoreDb, 'gameResults'));
+    if (!resultsSnap.empty) {
+      resultsSnap.forEach((docSnap) => {
+        const rData = docSnap.data() as GameResult;
+        const idx = db.gameResults.findIndex((r) => r.id === rData.id);
+        if (idx >= 0) db.gameResults[idx] = rData;
+        else db.gameResults.push(rData);
+      });
+    }
+
+    const xpSnap = await getDocs(collection(firestoreDb, 'xpHistory'));
+    if (!xpSnap.empty) {
+      xpSnap.forEach((docSnap) => {
+        const xData = docSnap.data() as XpHistoryEntry;
+        const idx = db.xpHistory.findIndex((x) => x.id === xData.id);
+        if (idx >= 0) db.xpHistory[idx] = xData;
+        else db.xpHistory.push(xData);
+      });
+    }
+
+    const auditSnap = await getDocs(collection(firestoreDb, 'auditLogs'));
+    if (!auditSnap.empty) {
+      auditSnap.forEach((docSnap) => {
+        const aData = docSnap.data() as AuditLogEntry;
+        const idx = db.auditLogs.findIndex((a) => a.id === aData.id);
+        if (idx >= 0) db.auditLogs[idx] = aData;
+        else db.auditLogs.push(aData);
+      });
+    }
+
+    const sessionSnap = await getDocs(collection(firestoreDb, 'sessions'));
+    if (!sessionSnap.empty) {
+      sessionSnap.forEach((docSnap) => {
+        const sData = docSnap.data();
+        if (sData.token && sData.userId) {
+          db.sessions[sData.token] = sData.userId;
+        }
+      });
+    }
+
+    saveBackupDb();
+    console.log('✅ Cloud Firestore Primary Database loaded & synchronized');
+  } catch (err) {
+    handleFirestoreError(err);
   }
 }
 
@@ -185,36 +298,10 @@ async function ensureAdminExists() {
     adminUser.passwordHash = hashedVijayPass;
   }
 
-  saveDb();
-
-  // If MongoDB is connected, sync admin account to MongoDB
-  if (mongoose.connection.readyState === 1) {
-    try {
-      await UserModel.findOneAndUpdate(
-        { email: new RegExp(`^${adminEmail.replace(/[-[\]{}()*+?^$|#\s]/g, '\\$&')}$`, 'i') } as any,
-        {
-          id: adminUser.id,
-          email: adminEmail,
-          passwordHash: hashedVijayPass,
-          fullName: adminUser.fullName,
-          gamerTag: adminUser.gamerTag,
-          avatar: adminUser.avatar,
-          department: adminUser.department,
-          studentId: adminUser.studentId,
-          role: 'ADMIN',
-          xp: adminUser.xp || 0,
-          rankTier: adminUser.rankTier || 'Iron',
-          gamesPlayed: adminUser.gamesPlayed || 0,
-          wins: adminUser.wins || 0,
-          losses: adminUser.losses || 0,
-          joinedAt: adminUser.joinedAt || '2025-01-01'
-        },
-        { upsert: true, new: true }
-      );
-    } catch (err) {
-      console.error('Error syncing admin account into MongoDB:', err);
-    }
-  }
+  // 1. Store in Cloud Firestore First
+  await syncUserToFirestore(adminUser);
+  // 2. Store in local backup second
+  saveBackupDb();
 }
 
 // Fixed XP Calculation Rule
@@ -242,23 +329,14 @@ export function calculateXpForGame(game: string, result: string, moviesWon?: num
 }
 
 async function startServer() {
-  loadDb();
-
-  if (MONGODB_URI) {
-    try {
-      await mongoose.connect(MONGODB_URI);
-      console.log('Successfully connected to MongoDB');
-    } catch (err) {
-      console.warn('MongoDB connection error, falling back to local persistent file engine:', err);
-    }
-  }
-
+  loadBackupDb();
+  await loadDbFromFirestore();
   await ensureAdminExists();
 
   const app = express();
   app.use(express.json({ limit: '10mb' }));
 
-  // Helper Auth middleware
+  // Helper Auth middleware (Checks Firestore & Cache)
   const getAuthUser = async (req: express.Request): Promise<User | null> => {
     const authHeader = req.headers.authorization;
     if (!authHeader) return null;
@@ -267,14 +345,15 @@ async function startServer() {
 
     let userId = db.sessions[token];
 
-    if (!userId && mongoose.connection.readyState === 1) {
+    if (!userId && firestoreDb && isFirestoreAvailable) {
       try {
-        const sessionDoc = await SessionModel.findOne({ token } as any).exec();
-        if (sessionDoc) {
-          userId = sessionDoc.userId;
+        const sessionSnap = await getDoc(doc(firestoreDb, 'sessions', token));
+        if (sessionSnap.exists()) {
+          userId = sessionSnap.data()?.userId;
+          if (userId) db.sessions[token] = userId;
         }
       } catch (err) {
-        console.error('Error fetching session from MongoDB:', err);
+        handleFirestoreError(err);
       }
     }
 
@@ -282,14 +361,15 @@ async function startServer() {
 
     let user: User | null = db.users.find((u) => u.id === userId) || null;
 
-    if (!user && mongoose.connection.readyState === 1) {
+    if (!user && firestoreDb && isFirestoreAvailable) {
       try {
-        const userDoc = await UserModel.findOne({ id: userId } as any).exec();
-        if (userDoc) {
-          user = userDoc.toObject() as User;
+        const userSnap = await getDoc(doc(firestoreDb, 'users', userId));
+        if (userSnap.exists()) {
+          user = userSnap.data() as User;
+          db.users.push(user);
         }
       } catch (err) {
-        console.error('Error fetching user from MongoDB:', err);
+        handleFirestoreError(err);
       }
     }
 
@@ -303,7 +383,7 @@ async function startServer() {
     return user;
   };
 
-  const logAudit = (action: AuditLogEntry['action'], performedBy: string, details: string, req?: express.Request) => {
+  const logAudit = async (action: AuditLogEntry['action'], performedBy: string, details: string, req?: express.Request) => {
     const entry: AuditLogEntry = {
       id: 'audit_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
       action,
@@ -312,15 +392,26 @@ async function startServer() {
       ipAddress: req?.ip || '127.0.0.1',
       createdAt: new Date().toISOString()
     };
+    
+    // 1. Store in Cloud Firestore First
+    await syncAuditLogToFirestore(entry);
+
+    // 2. Store in cache & local backup
     db.auditLogs.unshift(entry);
-    saveDb();
+    saveBackupDb();
   };
 
   // --- API ROUTES ---
 
   // Health check
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', serverTime: new Date().toISOString() });
+    res.json({
+      status: 'ok',
+      database: 'Cloud Firestore',
+      backup: 'data_store.json',
+      serverTime: new Date().toISOString(),
+      firestoreConnected: isFirestoreAvailable
+    });
   });
 
   // PARTICIPANT AUTH: Sign Up / Registration
@@ -353,18 +444,9 @@ async function startServer() {
       }
 
       // Check existing username uniqueness
-      let existingUsernameUser = db.users.find(
+      const existingUsernameUser = db.users.find(
         (u) => u.gamerTag.toLowerCase() === trimmedUsername.toLowerCase()
       );
-
-      if (!existingUsernameUser && mongoose.connection.readyState === 1) {
-        const doc = await UserModel.findOne({
-          gamerTag: new RegExp(`^${trimmedUsername.replace(/[-[\]{}()*+?^$|#\s]/g, '\\$&')}$`, 'i')
-        } as any).exec();
-        if (doc) {
-          existingUsernameUser = doc.toObject() as User;
-        }
-      }
 
       if (existingUsernameUser) {
         return res.status(400).json({
@@ -373,25 +455,12 @@ async function startServer() {
       }
 
       // Check existing account detection (same full name & team name)
-      let existingAccount = db.users.find(
+      const existingAccount = db.users.find(
         (u) =>
           u.fullName.toLowerCase() === trimmedName.toLowerCase() &&
           (u.teamName?.toLowerCase() === trimmedTeam.toLowerCase() ||
             u.studentId.toLowerCase() === trimmedTeam.toLowerCase())
       );
-
-      if (!existingAccount && mongoose.connection.readyState === 1) {
-        const doc = await UserModel.findOne({
-          fullName: new RegExp(`^${trimmedName.replace(/[-[\]{}()*+?^$|#\s]/g, '\\$&')}$`, 'i'),
-          $or: [
-            { teamName: new RegExp(`^${trimmedTeam.replace(/[-[\]{}()*+?^$|#\s]/g, '\\$&')}$`, 'i') },
-            { studentId: new RegExp(`^${trimmedTeam.replace(/[-[\]{}()*+?^$|#\s]/g, '\\$&')}$`, 'i') }
-          ]
-        } as any).exec();
-        if (doc) {
-          existingAccount = doc.toObject() as User;
-        }
-      }
 
       if (existingAccount) {
         return res.status(400).json({
@@ -403,6 +472,7 @@ async function startServer() {
       const passwordHash = hashPassword(password);
       const userId = 'usr_st_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
       const email = `${trimmedUsername.toLowerCase()}@gamingarena.edu`;
+      const token = 'token_st_' + Date.now() + '_' + userId;
 
       const newUser: User = {
         id: userId,
@@ -423,33 +493,19 @@ async function startServer() {
         joinedAt: new Date().toISOString().split('T')[0]
       };
 
+      // 1. Store in Cloud Firestore First
+      await syncUserToFirestore(newUser);
+      await syncSessionToFirestore(token, newUser.id);
+
+      // 2. Store in cache & backup to data_store.json second
       db.users.push(newUser);
-      saveDb();
-
-      if (mongoose.connection.readyState === 1) {
-        try {
-          await UserModel.create(newUser);
-        } catch (e) {
-          console.error('Failed to create user in MongoDB:', e);
-        }
-      }
-
-      const token = 'token_st_' + Date.now() + '_' + newUser.id;
       db.sessions[token] = newUser.id;
-      saveDb();
-
-      if (mongoose.connection.readyState === 1) {
-        try {
-          await SessionModel.create({ token, userId: newUser.id });
-        } catch (e) {
-          console.error('Failed to create session in MongoDB:', e);
-        }
-      }
+      saveBackupDb();
 
       const { passwordHash: _, ...safeUser } = newUser;
       res.status(201).json({
         success: true,
-        message: 'Account registered successfully!',
+        message: 'Account registered successfully in Cloud Firestore!',
         token,
         user: safeUser
       });
@@ -470,26 +526,12 @@ async function startServer() {
 
       const queryStr = username.trim();
 
-      let user: User | null =
+      const user: User | null =
         db.users.find(
           (u) =>
             u.gamerTag.toLowerCase() === queryStr.toLowerCase() ||
             u.email.toLowerCase() === queryStr.toLowerCase()
         ) || null;
-
-      if (!user && mongoose.connection.readyState === 1) {
-        try {
-          const doc = await UserModel.findOne({
-            $or: [
-              { gamerTag: new RegExp(`^${queryStr.replace(/[-[\]{}()*+?^$|#\s]/g, '\\$&')}$`, 'i') },
-              { email: new RegExp(`^${queryStr.replace(/[-[\]{}()*+?^$|#\s]/g, '\\$&')}$`, 'i') }
-            ]
-          } as any).exec();
-          if (doc) user = doc.toObject() as User;
-        } catch (dbErr) {
-          console.error('MongoDB lookup error during login:', dbErr);
-        }
-      }
 
       if (!user) {
         return res.status(401).json({ error: 'Invalid username or password.' });
@@ -501,16 +543,13 @@ async function startServer() {
       }
 
       const token = 'token_st_' + Date.now() + '_' + user.id;
-      db.sessions[token] = user.id;
-      saveDb();
 
-      if (mongoose.connection.readyState === 1) {
-        try {
-          await SessionModel.create({ token, userId: user.id });
-        } catch (e) {
-          console.error('Failed to create session in MongoDB:', e);
-        }
-      }
+      // 1. Store session in Cloud Firestore First
+      await syncSessionToFirestore(token, user.id);
+
+      // 2. Store in cache & backup to data_store.json second
+      db.sessions[token] = user.id;
+      saveBackupDb();
 
       const { passwordHash: _, ...safeUser } = user;
       res.json({ token, user: safeUser });
@@ -521,7 +560,7 @@ async function startServer() {
   });
 
   // STUDENT AUTH: Google / Student Login
-  app.post('/api/auth/student-google', (req, res) => {
+  app.post('/api/auth/student-google', async (req, res) => {
     const { email, fullName, avatar, googleId, department, studentId, gamerTag } = req.body;
 
     if (!email) {
@@ -557,14 +596,20 @@ async function startServer() {
     }
 
     const token = 'token_st_' + Date.now() + '_' + user.id;
+
+    // 1. Store in Cloud Firestore First
+    await syncUserToFirestore(user);
+    await syncSessionToFirestore(token, user.id);
+
+    // 2. Store in cache & backup second
     db.sessions[token] = user.id;
-    saveDb();
+    saveBackupDb();
 
     const { passwordHash, ...safeUser } = user;
     res.json({ token, user: safeUser });
   });
 
-  // ADMIN AUTH: Login (Supports both /api/auth/admin-login and /api/admin/admin-login)
+  // ADMIN AUTH: Login
   app.post(['/api/auth/admin-login', '/api/admin/admin-login'], async (req, res) => {
     try {
       const { email, password } = req.body;
@@ -573,62 +618,32 @@ async function startServer() {
         return res.status(401).json({ error: 'Invalid admin credentials.' });
       }
 
-      let adminUser: User | null = null;
-
-      // Check MongoDB if connected
-      if (mongoose.connection.readyState === 1) {
-        try {
-          const doc = await UserModel.findOne({
-            email: new RegExp(`^${email.replace(/[-[\]{}()*+?^$|#\s]/g, '\\$&')}$`, 'i'),
-            role: { $in: ['ADMIN', 'admin'] }
-          } as any).exec();
-
-          if (doc) {
-            adminUser = doc.toObject() as User;
-          }
-        } catch (dbErr) {
-          console.error('MongoDB query error during admin lookup:', dbErr);
-          return res.status(500).json({ error: 'Unable to connect to the authentication service. Please try again.' });
-        }
-      }
-
-      // Fallback to local DB if not found in Mongo or Mongo not connected
-      if (!adminUser) {
-        adminUser =
-          db.users.find(
-            (u) =>
-              (u.role === 'ADMIN' || u.role === 'admin') &&
-              u.email.toLowerCase() === email.toLowerCase()
-          ) || null;
-      }
+      const adminUser =
+        db.users.find(
+          (u) =>
+            (u.role === 'ADMIN' || u.role === 'admin') &&
+            u.email.toLowerCase() === email.toLowerCase()
+        ) || null;
 
       if (!adminUser) {
         return res.status(401).json({ error: 'Invalid admin credentials.' });
       }
 
-      // Password verification
       const isValid = verifyPassword(password, adminUser.passwordHash);
 
       if (!isValid) {
         return res.status(401).json({ error: 'Invalid admin credentials.' });
       }
 
-      // Create secure authenticated session
       const token = 'token_adm_' + Date.now() + '_' + Math.random().toString(36).substring(2);
 
-      try {
-        db.sessions[token] = adminUser.id;
-        saveDb();
+      // 1. Store in Cloud Firestore First
+      await syncSessionToFirestore(token, adminUser.id);
+      await logAudit('ADMIN_LOGIN', adminUser.email, 'Admin signed in successfully', req);
 
-        if (mongoose.connection.readyState === 1) {
-          await SessionModel.create({ token, userId: adminUser.id });
-        }
-      } catch (sessErr) {
-        console.error('Failed to create session:', sessErr);
-        return res.status(500).json({ error: 'Authentication failed. Please try again.' });
-      }
-
-      logAudit('ADMIN_LOGIN', adminUser.email, 'Admin signed in successfully', req);
+      // 2. Store in cache & backup second
+      db.sessions[token] = adminUser.id;
+      saveBackupDb();
 
       const { passwordHash, ...safeUser } = adminUser;
       res.json({ token, user: { ...safeUser, role: 'ADMIN' } });
@@ -639,7 +654,7 @@ async function startServer() {
   });
 
   // ADMIN FORGOT PASSWORD
-  app.post('/api/admin/forgot-password', (req, res) => {
+  app.post('/api/admin/forgot-password', async (req, res) => {
     const { email } = req.body;
     const admin = db.users.find((u) => (u.role === 'ADMIN' || u.role === 'admin') && u.email.toLowerCase() === (email || '').toLowerCase());
 
@@ -653,14 +668,14 @@ async function startServer() {
       expiresAt: Date.now() + 3600000
     };
 
-    logAudit('PASSWORD_RESET', admin.email, `Password reset token requested for ${admin.email}`, req);
-    saveDb();
+    await logAudit('PASSWORD_RESET', admin.email, `Password reset token requested for ${admin.email}`, req);
+    saveBackupDb();
 
     res.json({ success: true, message: 'Password reset code generated.', resetToken });
   });
 
   // ADMIN RESET PASSWORD
-  app.post('/api/admin/reset-password', (req, res) => {
+  app.post('/api/admin/reset-password', async (req, res) => {
     const { resetToken, newPassword } = req.body;
 
     if (!resetToken || !newPassword) {
@@ -675,14 +690,15 @@ async function startServer() {
     const admin = db.users.find((u) => u.email.toLowerCase() === tokenData.email.toLowerCase());
     if (admin) {
       admin.passwordHash = hashPassword(newPassword);
-      if (mongoose.connection.readyState === 1) {
-        UserModel.updateOne({ email: admin.email }, { passwordHash: admin.passwordHash }).catch(console.error);
-      }
+      // 1. Store in Cloud Firestore First
+      await syncUserToFirestore(admin);
     }
 
     delete db.adminResetTokens[resetToken];
-    logAudit('PASSWORD_RESET', tokenData.email, `Password updated for admin ${tokenData.email}`, req);
-    saveDb();
+    await logAudit('PASSWORD_RESET', tokenData.email, `Password updated for admin ${tokenData.email}`, req);
+    
+    // 2. Store in local backup second
+    saveBackupDb();
 
     res.json({ success: true, message: 'Password reset successfully. Please log in with your new password.' });
   });
@@ -700,16 +716,13 @@ async function startServer() {
     const authHeader = req.headers.authorization;
     if (authHeader) {
       const token = authHeader.replace('Bearer ', '').trim();
-      delete db.sessions[token];
-      saveDb();
+      
+      // 1. Delete from Cloud Firestore First
+      await deleteSessionFromFirestore(token);
 
-      if (mongoose.connection.readyState === 1) {
-        try {
-          await SessionModel.deleteOne({ token });
-        } catch (e) {
-          console.error('Error deleting session from Mongo:', e);
-        }
-      }
+      // 2. Delete from cache & local backup second
+      delete db.sessions[token];
+      saveBackupDb();
     }
     res.json({ success: true });
   });
@@ -817,7 +830,6 @@ async function startServer() {
       recordedByAdmin: admin.email,
       createdAt: new Date().toISOString()
     };
-    db.gameResults.unshift(newResult);
 
     const newXpEntry: XpHistoryEntry = {
       id: 'xp_' + Date.now(),
@@ -829,16 +841,22 @@ async function startServer() {
       performedBy: admin.email,
       createdAt: new Date().toISOString()
     };
-    db.xpHistory.unshift(newXpEntry);
 
-    logAudit(
+    // 1. Store in Cloud Firestore First
+    await syncUserToFirestore(student);
+    await syncGameResultToFirestore(newResult);
+    await syncXpHistoryToFirestore(newXpEntry);
+    await logAudit(
       'XP_UPDATE',
       admin.email,
       `Awarded +${xpAwarded} XP to ${student.fullName} (${student.gamerTag}) for ${game} [${result}]`,
       req
     );
 
-    saveDb();
+    // 2. Store in cache & backup to data_store.json second
+    db.gameResults.unshift(newResult);
+    db.xpHistory.unshift(newXpEntry);
+    saveBackupDb();
 
     const { passwordHash, ...safeStudent } = student;
 
@@ -894,7 +912,7 @@ async function startServer() {
     result.isVoided = true;
     result.voidReason = voidReason;
 
-    db.xpHistory.unshift({
+    const voidXpEntry: XpHistoryEntry = {
       id: 'xp_void_' + Date.now(),
       userId: result.userId,
       userGamerTag: result.userGamerTag,
@@ -903,11 +921,17 @@ async function startServer() {
       amount: -result.xpAwarded,
       performedBy: admin.email,
       createdAt: new Date().toISOString()
-    });
+    };
 
-    logAudit('RESULT_VOID', admin.email, `Voided game result ${resultId} for ${result.userGamerTag}. Reason: ${voidReason}`, req);
+    // 1. Store in Cloud Firestore First
+    await syncGameResultToFirestore(result);
+    if (student) await syncUserToFirestore(student);
+    await syncXpHistoryToFirestore(voidXpEntry);
+    await logAudit('RESULT_VOID', admin.email, `Voided game result ${resultId} for ${result.userGamerTag}. Reason: ${voidReason}`, req);
 
-    saveDb();
+    // 2. Store in cache & backup to data_store.json second
+    db.xpHistory.unshift(voidXpEntry);
+    saveBackupDb();
 
     let safeStudent = undefined;
     if (student) {
@@ -989,10 +1013,9 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  app.listen(PORT, () => {
     console.log(`🎮 Gaming Arena College Leaderboard Server running on http://localhost:${PORT}`);
   });
 }
 
 startServer();
-

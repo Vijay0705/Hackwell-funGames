@@ -4,12 +4,9 @@ import {
   Trophy,
   Gamepad2,
   TrendingUp,
-  History,
-  ShieldCheck,
-  UserCheck,
   LogOut,
   Sparkles,
-  Lock,
+  LogIn,
   LayoutDashboard
 } from 'lucide-react';
 
@@ -17,8 +14,7 @@ interface NavbarProps {
   currentUser: User | null;
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  onOpenStudentAuth: () => void;
-  onOpenAdminLogin: () => void;
+  onOpenAuth: () => void;
   onLogout: () => void;
   currentPath?: string;
   onNavigateAdmin?: (path: string) => void;
@@ -28,13 +24,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   activeTab,
   setActiveTab,
-  onOpenStudentAuth,
-  onOpenAdminLogin,
+  onOpenAuth,
   onLogout,
   currentPath,
   onNavigateAdmin
 }) => {
-  const isStudent = currentUser && currentUser.role === 'student';
   const isAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'ADMIN');
 
   const isDashboardPage =
@@ -52,26 +46,23 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="sticky top-0 z-40 bg-[#D90429] border-b-4 border-black text-white shadow-[0_4px_0_0_#000000]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-18">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between min-h-[4.5rem] py-2 sm:py-0 gap-2 sm:gap-4">
           {/* Logo & Brand */}
           <div
-            className="flex items-center gap-3 cursor-pointer"
+            className="flex items-center gap-2.5 sm:gap-3 cursor-pointer shrink-0"
             onClick={handleBrandClick}
           >
-            <div className="flex items-center justify-center w-11 h-11 bg-[#FFB703] border-4 border-black shadow-[3px_3px_0_0_#000000] rotate-[-2deg]">
-              <Trophy className="w-6 h-6 text-black stroke-[2.5]" />
+            <div className="flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 bg-[#FFB703] border-3 sm:border-4 border-black shadow-[3px_3px_0_0_#000000] rotate-[-2deg]">
+              <Trophy className="w-5 h-5 sm:w-6 sm:h-6 text-black stroke-[2.5]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-black text-2xl tracking-tighter text-white uppercase italic drop-shadow-[2px_2px_0_#000]">
+                <span className="font-black text-xl sm:text-2xl tracking-tighter text-white uppercase italic drop-shadow-[2px_2px_0_#000]">
                   GAMING ARENA
                 </span>
-                <span className="hidden sm:inline-flex items-center px-2 py-0.5 font-black text-[10px] bg-[#FFB703] text-black border-2 border-black uppercase tracking-wider shadow-[2px_2px_0_0_#000]">
-                  Official Leaderboard
-                </span>
               </div>
-              <p className="text-[10px] text-white/90 font-bold uppercase tracking-wider -mt-1 hidden sm:block">
+              <p className="text-[9px] sm:text-[10px] text-white/90 font-bold uppercase tracking-wider -mt-0.5 hidden xs:block sm:block">
                 College Gaming Event XP Portal
               </p>
             </div>
@@ -79,7 +70,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Navigation Links (Student / General) */}
           {!isAdmin && (
-            <nav className="hidden md:flex items-center gap-2">
+            <nav className="flex items-center gap-1.5 sm:gap-2.5 my-1 sm:my-0">
               <button
                 id="nav-home-btn"
                 onClick={() => setActiveTab('student-home')}
@@ -90,7 +81,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }`}
               >
                 <Sparkles className="w-4 h-4 text-black stroke-[2.5]" />
-                Home
+                <span>Home</span>
               </button>
 
               <button
@@ -103,7 +94,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }`}
               >
                 <Gamepad2 className="w-4 h-4 text-black stroke-[2.5]" />
-                Games
+                <span>Games</span>
               </button>
 
               <button
@@ -116,44 +107,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }`}
               >
                 <TrendingUp className="w-4 h-4 text-black stroke-[2.5]" />
-                Leaderboard
+                <span>Leaderboard</span>
               </button>
-
-              {isStudent && (
-                <>
-                  <button
-                    id="nav-myscore-btn"
-                    onClick={() => setActiveTab('student-home')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 font-black text-xs uppercase tracking-wider transition-all border-2 border-black cursor-pointer ${
-                      activeTab === 'student-score'
-                        ? 'bg-[#FFB703] text-black shadow-[3px_3px_0_0_#000000] -translate-y-0.5'
-                        : 'bg-white text-black hover:bg-[#FFF9E6]'
-                    }`}
-                  >
-                    <Trophy className="w-4 h-4 text-black stroke-[2.5]" />
-                    My Score
-                  </button>
-
-                  <button
-                    id="nav-game-history-btn"
-                    onClick={() => setActiveTab('student-history')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 font-black text-xs uppercase tracking-wider transition-all border-2 border-black cursor-pointer ${
-                      activeTab === 'student-history'
-                        ? 'bg-[#FFB703] text-black shadow-[3px_3px_0_0_#000000] -translate-y-0.5'
-                        : 'bg-white text-black hover:bg-[#FFF9E6]'
-                    }`}
-                  >
-                    <History className="w-4 h-4 text-black stroke-[2.5]" />
-                    Game History
-                  </button>
-                </>
-              )}
             </nav>
           )}
 
           {/* Navigation Links (Admin Mode) */}
           {isAdmin && (
-            <div className="hidden md:flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 my-1 sm:my-0">
               <button
                 id="admin-navbar-dashboard-btn"
                 onClick={() => {
@@ -191,13 +152,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }`}
               >
                 <TrendingUp className="w-4 h-4 stroke-[2.5]" />
-                Public View
+                <span className="hidden sm:inline">Public View</span>
               </button>
             </div>
           )}
 
           {/* User Auth Controls */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 shrink-0">
             {currentUser ? (
               <div className="flex items-center gap-2">
                 <div
@@ -215,7 +176,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {currentUser.gamerTag}
                     </p>
                     <p className="text-[9px] font-mono font-bold text-[#D90429] uppercase leading-none">
-                      {currentUser.role === 'admin' || currentUser.role === 'ADMIN' ? 'Official Admin' : `${currentUser.xp} XP (${currentUser.rankTier})`}
+                      {currentUser.role === 'admin' || currentUser.role === 'ADMIN' ? 'Official Admin' : `${currentUser.xp} XP`}
                     </p>
                   </div>
                 </div>
@@ -224,85 +185,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                   id="logout-btn"
                   onClick={onLogout}
                   title="Sign Out"
-                  className="p-2 bg-white text-black hover:bg-black hover:text-white border-2 border-black shadow-[2px_2px_0_0_#000000] transition-all cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D90429] hover:bg-black text-white font-black text-xs uppercase border-2 border-black shadow-[2px_2px_0_0_#000000] transition-all cursor-pointer"
                 >
                   <LogOut className="w-4 h-4 stroke-[2.5]" />
+                  <span className="hidden sm:inline">Logout</span>
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
-                <button
-                  id="open-student-auth-btn"
-                  onClick={onOpenStudentAuth}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FFB703] hover:bg-[#e0a100] text-black font-black text-xs uppercase tracking-wider border-2 border-black shadow-[2px_2px_0_0_#000000] transition-all cursor-pointer"
-                >
-                  <UserCheck className="w-4 h-4 stroke-[2.5]" />
-                  <span>Student Google Sign In</span>
-                </button>
-
-                <button
-                  id="open-admin-login-btn"
-                  onClick={onOpenAdminLogin}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-black font-black text-xs uppercase tracking-wider border-2 border-black shadow-[2px_2px_0_0_#000000] transition-all cursor-pointer"
-                >
-                  <Lock className="w-4 h-4 stroke-[2.5]" />
-                  <span className="hidden sm:inline">Admin Login</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Mobile Navigation Row */}
-        {isAdmin ? (
-          <div className="md:hidden flex items-center justify-between px-3 py-2 border-t-2 border-black text-xs bg-[#FFB703] text-black font-black uppercase">
-            <button
-              id="mobile-admin-dashboard-btn"
-              onClick={() => {
-                if (onNavigateAdmin) onNavigateAdmin('/admin/dashboard');
-                else setActiveTab('admin-dashboard');
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1 border-2 border-black shadow-[2px_2px_0_0_#000] cursor-pointer ${
-                isDashboardPage
-                  ? 'bg-black text-[#FFB703]'
-                  : 'bg-white text-black'
-              }`}
-            >
-              <LayoutDashboard className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>Admin Dashboard</span>
-            </button>
-            <span className="text-[10px] font-mono font-black uppercase">OFFICIAL ADMIN MODE</span>
-          </div>
-        ) : (
-          <div className="md:hidden flex items-center justify-around py-2 border-t-2 border-black text-xs bg-white text-black font-black uppercase">
-            <button
-              onClick={() => setActiveTab('student-home')}
-              className={`p-1 text-[10px] ${activeTab === 'student-home' ? 'bg-[#FFB703] border border-black' : ''}`}
-            >
-              Home
-            </button>
-            <button
-              onClick={() => setActiveTab('games')}
-              className={`p-1 text-[10px] ${activeTab === 'games' ? 'bg-[#FFB703] border border-black' : ''}`}
-            >
-              Games
-            </button>
-            <button
-              onClick={() => setActiveTab('leaderboard')}
-              className={`p-1 text-[10px] ${activeTab === 'leaderboard' ? 'bg-[#FFB703] border border-black' : ''}`}
-            >
-              Leaderboard
-            </button>
-            {isStudent && (
               <button
-                onClick={() => setActiveTab('student-history')}
-                className={`p-1 text-[10px] ${activeTab === 'student-history' ? 'bg-[#FFB703] border border-black' : ''}`}
+                id="open-auth-btn"
+                onClick={onOpenAuth}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#FFB703] hover:bg-[#e0a100] text-black font-black text-xs uppercase tracking-wider border-2 border-black shadow-[3px_3px_0_0_#000000] transition-all cursor-pointer hover:-translate-y-0.5 active:translate-y-0"
               >
-                History
+                <LogIn className="w-4 h-4 stroke-[2.5]" />
+                <span>Sign In / Sign Up</span>
               </button>
             )}
           </div>
-        )}
+        </div>
       </div>
     </header>
   );

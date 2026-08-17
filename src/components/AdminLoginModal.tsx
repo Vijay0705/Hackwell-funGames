@@ -14,14 +14,14 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
   onAdminLogin,
   onOpenStudentAuth
 }) => {
-  const [email, setEmail] = useState('ivijaysa@gmail.com');
-  const [password, setPassword] = useState('vijay007');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Forgot password sub-state
   const [isForgotPasswordView, setIsForgotPasswordView] = useState(false);
-  const [resetEmail, setResetEmail] = useState('ivijaysa@gmail.com');
+  const [resetEmail, setResetEmail] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [resetStep, setResetStep] = useState<1 | 2>(1);
@@ -243,20 +243,6 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
               <Lock className="w-4 h-4 stroke-[3]" />
               {loading ? 'Authenticating Admin...' : 'Sign In to Admin Control Center'}
             </button>
-
-            {/* Quick Fill Admin Credentials Button */}
-            <div className="pt-3 border-t-2 border-black">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('ivijaysa@gmail.com');
-                  setPassword('vijay007');
-                }}
-                className="w-full py-2 bg-[#FFB703] hover:bg-[#e0a100] text-black font-black text-[11px] uppercase border-2 border-black shadow-[2px_2px_0_0_#000] cursor-pointer"
-              >
-                ⚡ Quick Fill Admin Credentials (ivijaysa@gmail.com / vijay007)
-              </button>
-            </div>
           </form>
         )}
 
