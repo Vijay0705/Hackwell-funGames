@@ -15,7 +15,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
   onLoginSuccess,
   existingStudents
 }) => {
-  const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 
   // Registration state
   const [name, setName] = useState('');
@@ -119,7 +119,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
     setSuccessMsg('');
 
     if (!loginUsername.trim() || !loginPassword) {
-      setError('Please enter your Username and Password.');
+      setError('Please enter your Username/Email and Password.');
       return;
     }
 
@@ -138,7 +138,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
       const data = await res.json();
 
       if (!res.ok || data.error) {
-        setError(data.error || 'Invalid username or password.');
+        setError(data.error || 'Invalid username/email or password.');
       } else if (data.token && data.user) {
         onLoginSuccess(data.user, data.token);
         handleClose();
@@ -165,38 +165,21 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
         <div className="border-b-4 border-black pb-4">
           <div className="flex items-center gap-2 mb-1">
             <span className="px-2 py-0.5 bg-[#FFB703] text-black font-mono text-[10px] font-black uppercase border border-black shadow-[2px_2px_0_0_#000]">
-              🎮 PARTICIPANT PORTAL
+              🎮 GAMING ARENA PORTAL
             </span>
           </div>
-          <h2 className="text-2xl font-black uppercase italic text-black italic">
-            {authMode === 'register' ? 'PARTICIPANT REGISTRATION' : 'PARTICIPANT LOGIN'}
+          <h2 className="text-2xl font-black uppercase italic text-black">
+            {authMode === 'login' ? 'ACCOUNT SIGN IN' : 'PARTICIPANT REGISTRATION'}
           </h2>
           <p className="text-xs font-bold uppercase text-slate-600 mt-1">
-            {authMode === 'register'
-              ? 'Join the official college gaming arena leaderboard'
-              : 'Sign in to track your XP, rank, and tournament progress'}
+            {authMode === 'login'
+              ? 'Sign in with your GamerTag, Student ID, or Admin Email'
+              : 'Join the official college gaming arena leaderboard'}
           </p>
         </div>
 
         {/* Mode Switcher Tabs */}
         <div className="grid grid-cols-2 gap-2 bg-[#FFF9E6] p-1.5 border-2 border-black">
-          <button
-            type="button"
-            onClick={() => {
-              setAuthMode('register');
-              setError('');
-              setSuccessMsg('');
-            }}
-            className={`py-2 px-3 text-xs font-black uppercase transition-all flex items-center justify-center gap-1.5 border-2 cursor-pointer ${
-              authMode === 'register'
-                ? 'bg-[#FFB703] text-black border-black shadow-[2px_2px_0_0_#000]'
-                : 'bg-white text-black border-transparent hover:bg-slate-100'
-            }`}
-          >
-            <UserCheck className="w-4 h-4 stroke-[2.5]" />
-            <span>Sign Up</span>
-          </button>
-
           <button
             type="button"
             onClick={() => {
@@ -211,7 +194,24 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
             }`}
           >
             <LogIn className="w-4 h-4 stroke-[2.5]" />
-            <span>Log In</span>
+            <span>Sign In</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAuthMode('register');
+              setError('');
+              setSuccessMsg('');
+            }}
+            className={`py-2 px-3 text-xs font-black uppercase transition-all flex items-center justify-center gap-1.5 border-2 cursor-pointer ${
+              authMode === 'register'
+                ? 'bg-[#FFB703] text-black border-black shadow-[2px_2px_0_0_#000]'
+                : 'bg-white text-black border-transparent hover:bg-slate-100'
+            }`}
+          >
+            <UserCheck className="w-4 h-4 stroke-[2.5]" />
+            <span>Register</span>
           </button>
         </div>
 
@@ -367,7 +367,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
                 type="text"
                 value={loginUsername}
                 onChange={(e) => setLoginUsername(e.target.value)}
-                placeholder="e.g. ApexLegend_99"
+                placeholder="e.g. GamerTag, Student ID, or Admin Email"
                 className="w-full p-2.5 bg-[#FFF9E6] border-2 border-black font-bold text-xs outline-none focus:bg-white"
                 required
               />

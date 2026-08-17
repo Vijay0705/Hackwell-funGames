@@ -18,7 +18,8 @@ export type EventGame =
   | 'Among Us' 
   | 'Antakshiri' 
   | 'Dumb Charades' 
-  | 'Guess the PIN';
+  | 'Guess the PIN'
+  | 'Free Fire / BGMI';
 
 export interface User {
   id: string;

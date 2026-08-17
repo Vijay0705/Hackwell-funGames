@@ -236,6 +236,8 @@ export function calculateXpForGame(game: string, result: string, moviesWon?: num
     }
     case 'Guess the PIN':
       return result === 'CORRECT WITHIN TIME' ? 10 : 0;
+    case 'Free Fire / BGMI':
+      return result === 'WIN' ? 60 : 0;
     default:
       return 0;
   }

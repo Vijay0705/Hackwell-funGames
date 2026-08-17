@@ -443,6 +443,7 @@ export default function App() {
             {activeTab === 'student-home' && (
               <StudentHome
                 currentUser={currentUser}
+                activeTab={activeTab}
                 onOpenStudentAuth={() => setIsStudentAuthOpen(true)}
                 onNavigateTab={(tab) => setActiveTab(tab as any)}
               />
@@ -457,6 +458,7 @@ export default function App() {
             {activeTab === 'student-score' && (
               <StudentHome
                 currentUser={currentUser}
+                activeTab={activeTab}
                 onOpenStudentAuth={() => setIsStudentAuthOpen(true)}
                 onNavigateTab={(tab) => setActiveTab(tab as any)}
               />
@@ -465,6 +467,7 @@ export default function App() {
             {activeTab === 'student-history' && (
               <StudentHome
                 currentUser={currentUser}
+                activeTab={activeTab}
                 onOpenStudentAuth={() => setIsStudentAuthOpen(true)}
                 onNavigateTab={(tab) => setActiveTab(tab as any)}
               />
@@ -484,6 +487,9 @@ export default function App() {
           setCurrentUser(user);
           showToast(`Welcome back, ${user.fullName}! 🎉`);
           setIsStudentAuthOpen(false);
+          if (user.role === 'admin' || user.role === 'ADMIN') {
+            navigate('/admin/dashboard');
+          }
           fetchData();
         }}
         existingStudents={students}

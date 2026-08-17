@@ -15,7 +15,7 @@
       "wins": 0,
       "losses": 0,
       "joinedAt": "2025-01-01",
-      "passwordHash": "664038e49b25120481bcc0d5ac0464b9:92fc49baab1501a0b4111b362abf7f5b91e6dac78f2de4129d810ff4894175692d746b22a9064b3571519f90f1b8cf2c9da126a4dee6d89f5fe7208b379ff098"
+      "passwordHash": "3921d3e4cf2c7cf990773ba7796f83b6:032582c18d2d4e941a4236700e99ba3dc3ede17e26d37c2fba2a8b079c338fc1323bb8ca9f84c2769974251d2e1a8f2a245c9116070e5a392f887f1bb068c618"
     },
     {
       "id": "usr_arjun",
@@ -27,10 +27,10 @@
       "studentId": "CS2023-019",
       "role": "student",
       "xp": 320,
-      "rankTier": "Silver",
-      "gamesPlayed": 7,
+      "rankTier": "Bronze",
+      "gamesPlayed": 8,
       "wins": 5,
-      "losses": 2,
+      "losses": 3,
       "joinedAt": "2025-01-10"
     },
     {
@@ -96,9 +96,39 @@
       "wins": 2,
       "losses": 2,
       "joinedAt": "2025-01-25"
+    },
+    {
+      "id": "usr_st_1786953661734_fhsae",
+      "email": "ash123@gamingarena.edu",
+      "passwordHash": "4d4de00d3798f6561f70fa988cae039a:f0e34309cd123fd7116bdbc8454671b2107979a5fe1a738a36989c8223e7732f01377b3746602762dd266f2e3bfd34543d099b57f01c24ce0e5409bc993335aa",
+      "fullName": "Ashwin",
+      "gamerTag": "ash123",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=ash123",
+      "department": "CSE",
+      "teamName": "Code chaos",
+      "studentId": "Code chaos",
+      "role": "student",
+      "xp": 0,
+      "rankTier": "Iron",
+      "gamesPlayed": 0,
+      "wins": 0,
+      "losses": 0,
+      "joinedAt": "2026-08-17"
     }
   ],
   "gameResults": [
+    {
+      "id": "res_1786951184121",
+      "userId": "usr_arjun",
+      "userGamerTag": "GrandmasterArjun",
+      "userFullName": "Arjun Sharma",
+      "game": "Chess",
+      "result": "LOSS",
+      "xpAwarded": 0,
+      "isVoided": false,
+      "recordedByAdmin": "ivijaysa@gmail.com",
+      "createdAt": "2026-08-17T07:19:44.122Z"
+    },
     {
       "id": "res_1",
       "userId": "usr_arjun",
@@ -187,6 +217,16 @@
   ],
   "xpHistory": [
     {
+      "id": "xp_1786951184122",
+      "userId": "usr_arjun",
+      "userGamerTag": "GrandmasterArjun",
+      "game": "Chess",
+      "result": "LOSS",
+      "amount": 0,
+      "performedBy": "ivijaysa@gmail.com",
+      "createdAt": "2026-08-17T07:19:44.122Z"
+    },
+    {
       "id": "xp_res_1",
       "userId": "usr_arjun",
       "userGamerTag": "GrandmasterArjun",
@@ -259,6 +299,22 @@
   ],
   "auditLogs": [
     {
+      "id": "audit_1786951184122_569",
+      "action": "XP_UPDATE",
+      "performedBy": "ivijaysa@gmail.com",
+      "details": "Awarded +0 XP to Arjun Sharma (GrandmasterArjun) for Chess [LOSS]",
+      "ipAddress": "127.0.0.1",
+      "createdAt": "2026-08-17T07:19:44.122Z"
+    },
+    {
+      "id": "audit_1786950266514_665",
+      "action": "ADMIN_LOGIN",
+      "performedBy": "ivijaysa@gmail.com",
+      "details": "Admin signed in successfully",
+      "ipAddress": "127.0.0.1",
+      "createdAt": "2026-08-17T07:04:26.515Z"
+    },
+    {
       "id": "audit_1",
       "action": "ADMIN_LOGIN",
       "performedBy": "admin@gamingarena.edu",
@@ -280,6 +336,8 @@
       "createdAt": "2026-08-15T06:17:04.506Z"
     }
   ],
-  "sessions": {},
+  "sessions": {
+    "token_st_1786953661735_usr_st_1786953661734_fhsae": "usr_st_1786953661734_fhsae"
+  },
   "adminResetTokens": {}
 }

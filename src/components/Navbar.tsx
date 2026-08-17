@@ -230,25 +230,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
-                <button
-                  id="open-student-auth-btn"
-                  onClick={onOpenStudentAuth}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FFB703] hover:bg-[#e0a100] text-black font-black text-xs uppercase tracking-wider border-2 border-black shadow-[2px_2px_0_0_#000000] transition-all cursor-pointer"
-                >
-                  <UserCheck className="w-4 h-4 stroke-[2.5]" />
-                  <span>Student Google Sign In</span>
-                </button>
-
-                <button
-                  id="open-admin-login-btn"
-                  onClick={onOpenAdminLogin}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-black font-black text-xs uppercase tracking-wider border-2 border-black shadow-[2px_2px_0_0_#000000] transition-all cursor-pointer"
-                >
-                  <Lock className="w-4 h-4 stroke-[2.5]" />
-                  <span className="hidden sm:inline">Admin Login</span>
-                </button>
-              </div>
+              <button
+                id="open-auth-btn"
+                onClick={onOpenStudentAuth}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#FFB703] hover:bg-[#e0a100] text-black font-black text-xs uppercase tracking-wider border-2 border-black shadow-[2px_2px_0_0_#000000] transition-all cursor-pointer"
+              >
+                <UserCheck className="w-4 h-4 stroke-[2.5]" />
+                <span>Sign In</span>
+              </button>
             )}
           </div>
         </div>
