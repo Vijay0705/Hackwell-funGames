@@ -3,19 +3,19 @@
     {
       "id": "usr_admin_vijay",
       "email": "ivijaysa@gmail.com",
-      "fullName": "Vijay S (Admin)",
-      "gamerTag": "Admin_Vijay",
-      "avatar": "https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80",
-      "department": "Esports Commission",
       "studentId": "ADM-2025-01",
-      "role": "ADMIN",
-      "xp": 0,
-      "rankTier": "Spark",
-      "gamesPlayed": 0,
       "wins": 0,
+      "gamerTag": "Admin_Vijay",
+      "rankTier": "Spark",
+      "fullName": "Vijay S (Admin)",
+      "passwordHash": "73753e26e9eb22466a5ccf2f6f3635d2:66d9e44ab977860a173554ac1f910f36eca3c559c1da3a02a61c69008c7fe7d55cb0912b5074b86de1b702b8883a2af8abc3901e0e067bd618d34deb4995e14a",
+      "gamesPlayed": 0,
       "losses": 0,
+      "xp": 0,
+      "role": "ADMIN",
       "joinedAt": "2025-01-01",
-      "passwordHash": "875a5d4e80f6a73d01bc80970f379f8b:8594eb7dc56fa6c0a5dbf332889d9b62d31688daea74bbae9f16a6cb8d197097232c8ae7168cb1b713f81ec8b8469614f604aeb7de7e97581b77e8a89fd2e457"
+      "avatar": "https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80",
+      "department": "Esports Commission"
     },
     {
       "id": "usr_st_1787041965475_h3j3y",
@@ -34,6 +34,42 @@
       "wins": 0,
       "losses": 0,
       "joinedAt": "2026-08-18"
+    },
+    {
+      "fullName": "nidthish",
+      "studentId": "texhtitans",
+      "joinedAt": "2026-08-17",
+      "department": "CSE",
+      "id": "usr_st_1786962058384_uunvj",
+      "email": "nidthish@gamingarena.edu",
+      "wins": 0,
+      "teamName": "texhtitans",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=nidthish",
+      "gamesPlayed": 0,
+      "xp": 0,
+      "passwordHash": "eb27457a954d5565f59a738b841beef7:c11325c298b4cd58a10f94a1caf2f082737c37089a4f008c85372623883d3ac9591f81719a0af4cdcceb35786ed7eb2cc51a4f3059a4b50d445297f2b7ba98d6",
+      "gamerTag": "nidthish",
+      "rankTier": "Spark",
+      "losses": 0,
+      "role": "student"
+    },
+    {
+      "id": "usr_st_1786963673272_xge6v",
+      "rankTier": "Spark",
+      "gamerTag": "Nidthish_25",
+      "gamesPlayed": 0,
+      "teamName": "dummy team",
+      "department": "CSE",
+      "role": "student",
+      "studentId": "dummy team",
+      "joinedAt": "2026-08-17",
+      "xp": 0,
+      "passwordHash": "4b401735951cf2b5b8b3715211d02c2a:4279a488a0c0838c1a00e3bd8bc295952d8716d560f73bd86f5fba243ea2c3b68abed7b9a2a152c6c33c0ef4a68cb063b800bf0516c934eb01d33af4ceecd1dc",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=Nidthish_25",
+      "fullName": "nidthish",
+      "wins": 0,
+      "losses": 0,
+      "email": "nidthish_25@gamingarena.edu"
     }
   ],
   "gameResults": [],
@@ -48,7 +84,15 @@
     }
   ],
   "sessions": {
-    "token_st_1787042450443_usr_admin_vijay": "usr_admin_vijay"
+    "token_st_1787042450443_usr_admin_vijay": "usr_admin_vijay",
+    "token_st_1786962058384_usr_st_1786962058384_uunvj": "usr_st_1786962058384_uunvj",
+    "token_st_1786962083201_usr_st_1786959004746_ztbu2": "usr_st_1786959004746_ztbu2",
+    "token_st_1786962129650_usr_st_1786962058384_uunvj": "usr_st_1786962058384_uunvj",
+    "token_st_1786963410924_usr_admin_vijay": "usr_admin_vijay",
+    "token_st_1786963541095_usr_st_1786962058384_uunvj": "usr_st_1786962058384_uunvj",
+    "token_st_1786963557815_usr_st_1786962058384_uunvj": "usr_st_1786962058384_uunvj",
+    "token_st_1786963673273_usr_st_1786963673272_xge6v": "usr_st_1786963673272_xge6v",
+    "token_st_1787047130194_usr_admin_vijay": "usr_admin_vijay"
   },
   "adminResetTokens": {}
 }
