@@ -1,13 +1,8 @@
 export type RankTier = 
-  | 'Iron' 
-  | 'Bronze' 
-  | 'Silver' 
-  | 'Gold' 
-  | 'Platinum' 
-  | 'Diamond' 
-  | 'Master' 
-  | 'Grandmaster' 
-  | 'Radiance';
+  | 'Spark' 
+  | 'Blaze' 
+  | 'Nova' 
+  | 'Legend';
 
 export type UserRole = 'student' | 'participant' | 'admin' | 'ADMIN';
 

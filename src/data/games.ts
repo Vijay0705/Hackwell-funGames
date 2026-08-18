@@ -1,4 +1,4 @@
-import { GameInfo } from '../types';
+import { GameInfo, RankTier } from '../types';
 
 export const EVENT_GAMES: GameInfo[] = [
   {
@@ -115,14 +115,9 @@ export const EVENT_GAMES: GameInfo[] = [
   }
 ];
 
-export function calculateRankTier(xp: number): any {
-  if (xp >= 5000) return 'Radiance';
-  if (xp >= 3500) return 'Grandmaster';
-  if (xp >= 2500) return 'Master';
-  if (xp >= 1800) return 'Diamond';
-  if (xp >= 1200) return 'Platinum';
-  if (xp >= 800) return 'Gold';
-  if (xp >= 400) return 'Silver';
-  if (xp >= 150) return 'Bronze';
-  return 'Iron';
+export function calculateRankTier(xp: number): RankTier {
+  if (xp >= 150) return 'Legend';
+  if (xp >= 79) return 'Nova';
+  if (xp >= 39) return 'Blaze';
+  return 'Spark';
 }

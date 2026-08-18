@@ -119,7 +119,10 @@ function loadBackupDb() {
       const parsed = JSON.parse(data);
       if (parsed.users && parsed.gameResults) {
         db = {
-          users: parsed.users || [],
+          users: (parsed.users || []).map((u: User) => ({
+            ...u,
+            rankTier: calculateRankTier(u.xp)
+          })),
           gameResults: parsed.gameResults || [],
           xpHistory: parsed.xpHistory || [],
           auditLogs: parsed.auditLogs || [],
@@ -199,6 +202,7 @@ async function loadDbFromFirestore() {
       usersSnap.forEach((docSnap) => remoteUsers.push(docSnap.data() as User));
       
       remoteUsers.forEach((rUser) => {
+        rUser.rankTier = calculateRankTier(rUser.xp);
         const idx = db.users.findIndex((u) => u.id === rUser.id);
         if (idx >= 0) db.users[idx] = rUser;
         else db.users.push(rUser);
@@ -285,7 +289,7 @@ async function ensureAdminExists() {
       role: 'ADMIN',
       passwordHash: hashedVijayPass,
       xp: 0,
-      rankTier: 'Iron',
+      rankTier: 'Spark',
       gamesPlayed: 0,
       wins: 0,
       losses: 0,
@@ -488,7 +492,7 @@ async function startServer() {
         studentId: trimmedTeam,
         role: 'student',
         xp: 0,
-        rankTier: 'Iron',
+        rankTier: 'Spark',
         gamesPlayed: 0,
         wins: 0,
         losses: 0,
@@ -584,7 +588,7 @@ async function startServer() {
         studentId: studentId || 'ST-' + Math.floor(1000 + Math.random() * 9000),
         role: 'student',
         xp: 0,
-        rankTier: 'Iron',
+        rankTier: 'Spark',
         gamesPlayed: 0,
         wins: 0,
         losses: 0,
@@ -756,6 +760,7 @@ async function startServer() {
       const { passwordHash, ...safe } = user;
       return {
         ...safe,
+        rankTier: calculateRankTier(user.xp),
         rank: index + 1
       };
     });
@@ -771,7 +776,10 @@ async function startServer() {
   app.get('/api/users', (req, res) => {
     const students = db.users.filter((u) => u.role === 'student').map((u) => {
       const { passwordHash, ...safe } = u;
-      return safe;
+      return {
+        ...safe,
+        rankTier: calculateRankTier(u.xp)
+      };
     });
     res.json({ users: students });
   });
@@ -785,7 +793,14 @@ async function startServer() {
     const userResults = db.gameResults.filter((r) => r.userId === user.id && !r.isVoided);
     const userXpHistory = db.xpHistory.filter((x) => x.userId === user.id);
 
-    res.json({ user: safeUser, gameResults: userResults, xpHistory: userXpHistory });
+    res.json({
+      user: {
+        ...safeUser,
+        rankTier: calculateRankTier(user.xp)
+      },
+      gameResults: userResults,
+      xpHistory: userXpHistory
+    });
   });
 
   // UPDATE EVENT POINTS (ADMIN ONLY)

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { User, GameResult } from '../types';
+import { calculateRankTier } from '../data/games';
 import { Users, Search, Trophy, Zap, X, Gamepad2, CheckCircle, XCircle } from 'lucide-react';
 
 interface AdminPlayerManagementProps {
@@ -101,7 +102,7 @@ export const AdminPlayerManagement: React.FC<AdminPlayerManagementProps> = ({ st
                       <p className="text-[10px] text-slate-500">ID: {st.studentId}</p>
                     </td>
                     <td className="p-3 border-r-2 border-black font-mono uppercase text-slate-700">{st.department}</td>
-                    <td className="p-3 border-r-2 border-black font-black uppercase">{st.rankTier}</td>
+                    <td className="p-3 border-r-2 border-black font-black uppercase">{calculateRankTier(st.xp)}</td>
                     <td className="p-3 border-r-2 border-black font-mono font-black text-sm text-[#D90429]">
                       {st.xp.toLocaleString()} XP
                     </td>
@@ -151,7 +152,7 @@ export const AdminPlayerManagement: React.FC<AdminPlayerManagementProps> = ({ st
               </div>
               <div className="p-3 bg-[#FFF9E6] border-2 border-black">
                 <span className="text-[10px] text-slate-500 block">RANK TIER</span>
-                <span className="text-lg text-black">{selectedStudent.rankTier}</span>
+                <span className="text-lg text-black">{calculateRankTier(selectedStudent.xp)}</span>
               </div>
               <div className="p-3 bg-[#FFF9E6] border-2 border-black">
                 <span className="text-[10px] text-slate-500 block">WINS / LOSSES</span>

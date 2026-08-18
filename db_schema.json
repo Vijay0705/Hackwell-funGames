@@ -104,8 +104,8 @@
         },
         "rankTier": {
           "type": "string",
-          "default": "Iron",
-          "enum": ["Iron", "Bronze", "Silver", "Gold", "Platinum", "Diamond", "Master", "Grandmaster", "Radiance"],
+          "default": "Spark",
+          "enum": ["Spark", "Blaze", "Nova", "Legend"],
           "description": "Competitive tier computed from total XP"
         },
         "gamesPlayed": {

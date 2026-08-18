@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, LeaderboardUser, GameResult } from './types';
+import { calculateRankTier } from './data/games';
 import { Navbar } from './components/Navbar';
 import { StudentHome } from './components/StudentHome';
 import { GamesView } from './components/GamesView';
@@ -545,7 +546,7 @@ export default function App() {
               </div>
               <div className="p-3 bg-[#FFF9E6] border-2 border-black">
                 <span className="text-[10px] text-slate-500 block">RANK TIER</span>
-                <span className="text-xl text-black">{inspectedUser.rankTier}</span>
+                <span className="text-xl text-black">{calculateRankTier(inspectedUser.xp)}</span>
               </div>
               <div className="p-3 bg-[#FFF9E6] border-2 border-black">
                 <span className="text-[10px] text-slate-500 block">WINS / LOSSES</span>

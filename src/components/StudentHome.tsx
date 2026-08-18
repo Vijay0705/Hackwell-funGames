@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { User, GameResult } from '../types';
+import { calculateRankTier } from '../data/games';
 import { Trophy, Zap, Gamepad2, Award, CheckCircle, XCircle, ArrowRight, UserCheck } from 'lucide-react';
 
 interface StudentHomeProps {
@@ -190,7 +191,7 @@ export const StudentHome: React.FC<StudentHomeProps> = ({
             <span className="text-xs font-black uppercase tracking-wider">CURRENT RANK</span>
             <Award className="w-5 h-5 text-[#D90429] stroke-[3]" />
           </div>
-          <p className="text-2xl font-black text-[#D90429] uppercase italic">{currentUser.rankTier}</p>
+          <p className="text-2xl font-black text-[#D90429] uppercase italic">{calculateRankTier(currentUser.xp)}</p>
           <p className="text-[10px] font-bold text-slate-600 uppercase">Based on total XP</p>
         </div>
 

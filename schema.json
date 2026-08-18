@@ -317,15 +317,10 @@
     "RankTier": {
       "type": "string",
       "enum": [
-        "Iron",
-        "Bronze",
-        "Silver",
-        "Gold",
-        "Platinum",
-        "Diamond",
-        "Master",
-        "Grandmaster",
-        "Radiance"
+        "Spark",
+        "Blaze",
+        "Nova",
+        "Legend"
       ],
       "description": "Competitive tier ranks based on total player XP"
     },
@@ -362,15 +357,10 @@
     }
   },
   "rankTierThresholds": [
-    { "tier": "Iron", "minXp": 0 },
-    { "tier": "Bronze", "minXp": 150 },
-    { "tier": "Silver", "minXp": 400 },
-    { "tier": "Gold", "minXp": 800 },
-    { "tier": "Platinum", "minXp": 1200 },
-    { "tier": "Diamond", "minXp": 1800 },
-    { "tier": "Master", "minXp": 2500 },
-    { "tier": "Grandmaster", "minXp": 3500 },
-    { "tier": "Radiance", "minXp": 5000 }
+    { "tier": "Spark", "minXp": 0 },
+    { "tier": "Blaze", "minXp": 39 },
+    { "tier": "Nova", "minXp": 79 },
+    { "tier": "Legend", "minXp": 150 }
   ],
   "gameXpRules": [
     { "game": "Chess", "winXp": 50, "lossXp": 0, "rule": "WIN: +50 XP" },

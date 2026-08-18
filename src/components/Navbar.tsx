@@ -1,5 +1,6 @@
 import React from 'react';
 import { User } from '../types';
+import { calculateRankTier } from '../data/games';
 import {
   Trophy,
   Gamepad2,
@@ -67,9 +68,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="font-black text-2xl tracking-tighter text-white uppercase italic drop-shadow-[2px_2px_0_#000]">
                   GAMING ARENA
                 </span>
-                <span className="hidden sm:inline-flex items-center px-2 py-0.5 font-black text-[10px] bg-[#FFB703] text-black border-2 border-black uppercase tracking-wider shadow-[2px_2px_0_0_#000]">
-                  Official Leaderboard
-                </span>
               </div>
               <p className="text-[10px] text-white/90 font-bold uppercase tracking-wider -mt-1 hidden sm:block">
                 College Gaming Event XP Portal
@@ -120,33 +118,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
 
               {isStudent && (
-                <>
-                  <button
-                    id="nav-myscore-btn"
-                    onClick={() => setActiveTab('student-home')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 font-black text-xs uppercase tracking-wider transition-all border-2 border-black cursor-pointer ${
-                      activeTab === 'student-score'
-                        ? 'bg-[#FFB703] text-black shadow-[3px_3px_0_0_#000000] -translate-y-0.5'
-                        : 'bg-white text-black hover:bg-[#FFF9E6]'
-                    }`}
-                  >
-                    <Trophy className="w-4 h-4 text-black stroke-[2.5]" />
-                    My Score
-                  </button>
-
-                  <button
-                    id="nav-game-history-btn"
-                    onClick={() => setActiveTab('student-history')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 font-black text-xs uppercase tracking-wider transition-all border-2 border-black cursor-pointer ${
-                      activeTab === 'student-history'
-                        ? 'bg-[#FFB703] text-black shadow-[3px_3px_0_0_#000000] -translate-y-0.5'
-                        : 'bg-white text-black hover:bg-[#FFF9E6]'
-                    }`}
-                  >
-                    <History className="w-4 h-4 text-black stroke-[2.5]" />
-                    Game History
-                  </button>
-                </>
+                <button
+                  id="nav-game-history-btn"
+                  onClick={() => setActiveTab('student-history')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 font-black text-xs uppercase tracking-wider transition-all border-2 border-black cursor-pointer ${
+                    activeTab === 'student-history'
+                      ? 'bg-[#FFB703] text-black shadow-[3px_3px_0_0_#000000] -translate-y-0.5'
+                      : 'bg-white text-black hover:bg-[#FFF9E6]'
+                  }`}
+                >
+                  <History className="w-4 h-4 text-black stroke-[2.5]" />
+                  Game History
+                </button>
               )}
             </nav>
           )}
@@ -215,7 +198,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {currentUser.gamerTag}
                     </p>
                     <p className="text-[9px] font-mono font-bold text-[#D90429] uppercase leading-none">
-                      {currentUser.role === 'admin' || currentUser.role === 'ADMIN' ? 'Official Admin' : `${currentUser.xp} XP (${currentUser.rankTier})`}
+                      {currentUser.role === 'admin' || currentUser.role === 'ADMIN' ? 'Official Admin' : `${currentUser.xp} XP (${calculateRankTier(currentUser.xp)})`}
                     </p>
                   </div>
                 </div>
