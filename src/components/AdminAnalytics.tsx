@@ -75,7 +75,7 @@ export const AdminAnalytics: React.FC = () => {
               <Gamepad2 className="w-6 h-6 text-[#D90429]" />
             </div>
             <p className="text-4xl font-black text-black font-mono">{data.totalGamesPlayed}</p>
-            <p className="text-[10px] font-bold text-slate-600 uppercase">Matches Completed Across 7 Games</p>
+            <p className="text-[10px] font-bold text-slate-600 uppercase">Matches Completed Across 8 Games</p>
           </div>
 
           <div className="bg-white border-4 border-black p-6 shadow-[6px_6px_0_0_#000000] space-y-2">

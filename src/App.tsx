@@ -249,7 +249,7 @@ export default function App() {
   }, [loading, isAdminRoute, isAdminUser, currentPath]);
 
   return (
-    <div className="min-h-screen bg-[#FFF9E6] text-black font-sans selection:bg-[#FFB703] selection:text-black border-x-0 md:border-x-[8px] border-black">
+    <div className="min-h-screen bg-transparent text-black font-sans selection:bg-[#FFB703] selection:text-black border-x-0 md:border-x-[8px] border-black">
       {/* Toast Notification Banner */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom duration-300">

@@ -69,7 +69,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onSelectUser }
             COLLEGE ARENA XP LEADERBOARD
           </h1>
           <p className="text-xs font-bold uppercase text-black/80 mt-1">
-            Official cumulative rankings for all 7 event games. Refreshes automatically every 60 seconds.
+            Official cumulative rankings for all 8 event games. Refreshes automatically every 60 seconds.
           </p>
         </div>
 

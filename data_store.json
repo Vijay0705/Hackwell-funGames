@@ -15,7 +15,25 @@
       "wins": 0,
       "losses": 0,
       "joinedAt": "2025-01-01",
-      "passwordHash": "cf990483835528d534805e6309afacf4:58584913bf93bdd47e80f88312b1d6d164b3d75073ecc185fa133ab8c3a45b6484978b42907a2cd8a86ce6240217d3fce9122203cf25cc7c4ca2bc702df0cc41"
+      "passwordHash": "875a5d4e80f6a73d01bc80970f379f8b:8594eb7dc56fa6c0a5dbf332889d9b62d31688daea74bbae9f16a6cb8d197097232c8ae7168cb1b713f81ec8b8469614f604aeb7de7e97581b77e8a89fd2e457"
+    },
+    {
+      "id": "usr_st_1787041965475_h3j3y",
+      "email": "ash123@gamingarena.edu",
+      "passwordHash": "d6440147bb643648caf30c6212b58a22:32928faf363c504e376f2540ddca4ed661fa4af4c71fccaedf98961d277a498ae64000402267dce6842c8d7e87a0fb8ab6817a2642a6c861be5cf865e60b18d5",
+      "fullName": "Ashwin",
+      "gamerTag": "ash123",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=ash123",
+      "department": "CSE",
+      "teamName": "code cha",
+      "studentId": "code cha",
+      "role": "student",
+      "xp": 0,
+      "rankTier": "Spark",
+      "gamesPlayed": 0,
+      "wins": 0,
+      "losses": 0,
+      "joinedAt": "2026-08-18"
     }
   ],
   "gameResults": [],
@@ -29,6 +47,8 @@
       "createdAt": "2026-08-18T05:00:00.000Z"
     }
   ],
-  "sessions": {},
+  "sessions": {
+    "token_st_1787042450443_usr_admin_vijay": "usr_admin_vijay"
+  },
   "adminResetTokens": {}
 }
