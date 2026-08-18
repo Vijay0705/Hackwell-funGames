@@ -4,8 +4,7 @@
   "description": "Database Schema Specification for Gaming Arena — College Event Leaderboard (Cloud Firestore & Local Persistent Store)",
   "type": "object",
   "databaseEngine": {
-    "primary": "Cloud Firestore (hackwell-fungames)",
-    "fallback": "Local Persistent JSON Data Store (data_store.json)"
+    "primary": "Cloud Firestore (hackwell-fungames)"
   },
   "firestoreSecurityRules": {
     "users": {
