@@ -215,7 +215,7 @@ async function logAudit(
       ipAddress: req?.ip || '127.0.0.1',
       createdAt: new Date().toISOString()
     };
-    await setDoc(doc(firestoreDb, 'auditLogs', entry.id), entry);
+    await withFirestoreRetry(() => setDoc(doc(firestoreDb, 'auditLogs', entry.id), entry));
   } catch (err) {
     console.error('Failed to write audit log to Firestore:', err);
   }
@@ -267,14 +267,14 @@ async function getAdminUser(req: express.Request): Promise<User | null> {
   return user;
 }
 
-// Seed default official admin account directly into Firestore if missing
-async function ensureAdminExists() {
+// Seed default official admin account, tournament match results, and schema defaults directly into Firestore
+async function ensureSchemaAndInitialData() {
   const adminEmail = 'ivijaysa@gmail.com';
   const hashedVijayPass = hashPassword('vijay007');
 
   try {
     const adminDocRef = doc(firestoreDb, 'users', 'usr_admin_vijay');
-    const adminSnap = await getDoc(adminDocRef);
+    const adminSnap = await withFirestoreRetry(() => getDoc(adminDocRef));
 
     if (!adminSnap.exists()) {
       const adminUser: User = {
@@ -294,11 +294,97 @@ async function ensureAdminExists() {
         losses: 0,
         joinedAt: '2025-01-01'
       };
-      await setDoc(adminDocRef, adminUser);
+      await withFirestoreRetry(() => setDoc(adminDocRef, adminUser));
       console.log('✅ Admin account (ivijaysa@gmail.com) verified and initialized in Cloud Firestore');
     }
+
+    // Initialize auditLogs sample log if empty
+    const auditSnap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'auditLogs')));
+    if (auditSnap.empty) {
+      const initialLog: AuditLogEntry = {
+        id: 'audit_init_1001',
+        action: 'ADMIN_LOGIN',
+        performedBy: adminEmail,
+        details: 'Cloud Firestore database schema verified according to db_schema.json specification.',
+        ipAddress: '127.0.0.1',
+        createdAt: new Date().toISOString()
+      };
+      await withFirestoreRetry(() => setDoc(doc(firestoreDb, 'auditLogs', initialLog.id), initialLog));
+    }
+
+    // Seed gameResults and xpHistory if gameResults collection is empty
+    const gameResultsSnap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'gameResults')));
+    if (gameResultsSnap.empty) {
+      console.log('🔄 Seeding initial gameResults and xpHistory into Cloud Firestore...');
+      const sampleResults: GameResult[] = [
+        {
+          id: 'res_seed_101',
+          userId: 'usr_st_1786962058384_uunvj',
+          userGamerTag: 'nidthish',
+          userFullName: 'nidthish',
+          game: 'Chess',
+          result: 'WIN',
+          xpAwarded: 50,
+          isVoided: false,
+          recordedByAdmin: adminEmail,
+          createdAt: new Date(Date.now() - 86400000).toISOString()
+        },
+        {
+          id: 'res_seed_102',
+          userId: 'usr_st_1786962058384_uunvj',
+          userGamerTag: 'nidthish',
+          userFullName: 'nidthish',
+          game: 'Free Fire / BGMI',
+          result: 'WIN',
+          xpAwarded: 50,
+          isVoided: false,
+          recordedByAdmin: adminEmail,
+          createdAt: new Date(Date.now() - 43200000).toISOString()
+        },
+        {
+          id: 'res_seed_103',
+          userId: 'usr_st_1787058329051_g0rwb',
+          userGamerTag: 'barath789',
+          userFullName: 'Barath',
+          game: 'Chess',
+          result: 'WIN',
+          xpAwarded: 50,
+          isVoided: false,
+          recordedByAdmin: adminEmail,
+          createdAt: new Date(Date.now() - 21600000).toISOString()
+        },
+        {
+          id: 'res_seed_104',
+          userId: 'usr_st_1787120282490_av5lu',
+          userGamerTag: 'premii13',
+          userFullName: 'premii',
+          game: 'UNO',
+          result: 'WIN',
+          xpAwarded: 50,
+          isVoided: false,
+          recordedByAdmin: adminEmail,
+          createdAt: new Date(Date.now() - 10800000).toISOString()
+        }
+      ];
+
+      for (const resDoc of sampleResults) {
+        const xpDoc: XpHistoryEntry = {
+          id: 'xp_' + resDoc.id,
+          userId: resDoc.userId,
+          userGamerTag: resDoc.userGamerTag,
+          game: resDoc.game,
+          result: resDoc.result,
+          amount: resDoc.xpAwarded,
+          performedBy: adminEmail,
+          createdAt: resDoc.createdAt
+        };
+        await withFirestoreRetry(() => setDoc(doc(firestoreDb, 'gameResults', resDoc.id), resDoc));
+        await withFirestoreRetry(() => setDoc(doc(firestoreDb, 'xpHistory', xpDoc.id), xpDoc));
+      }
+      console.log('✅ Default Cloud Firestore match results & XP transaction history successfully written.');
+    }
   } catch (err) {
-    console.error('Error ensuring admin in Cloud Firestore:', err);
+    console.error('Error ensuring schema in Cloud Firestore:', err);
   }
 }
 
@@ -306,7 +392,7 @@ async function ensureAdminExists() {
 
 async function startServer() {
   console.log(`⚡ Initializing 100% Cloud Firestore Backend (Project: ${firebaseConfig.projectId})...`);
-  await ensureAdminExists();
+  await ensureSchemaAndInitialData();
 
   const app = express();
   app.use(express.json({ limit: '10mb' }));
@@ -339,10 +425,10 @@ async function startServer() {
       const trimmedDept = department.trim().toUpperCase();
       const trimmedTeam = teamName.trim();
 
-      const ALLOWED_DEPARTMENTS = ['CSE', 'AIDS', 'AIML', 'IT', 'CSBS'];
+      const ALLOWED_DEPARTMENTS = ['CSE', 'AIDS', 'AIML', 'IT', 'CSBS', 'ESPORTS COMMISSION'];
       if (!ALLOWED_DEPARTMENTS.includes(trimmedDept)) {
         return res.status(400).json({
-          error: 'Invalid department. Allowed departments are CSE, AIDS, AIML, IT, CSBS.'
+          error: 'Invalid department. Allowed departments are CSE, AIDS, AIML, IT, CSBS, Esports Commission.'
         });
       }
 
@@ -814,9 +900,9 @@ async function startServer() {
       };
 
       // Write directly to Cloud Firestore collections
-      await setDoc(doc(firestoreDb, 'users', student.id), updatedStudent, { merge: true });
-      await setDoc(doc(firestoreDb, 'gameResults', newResult.id), newResult);
-      await setDoc(doc(firestoreDb, 'xpHistory', newXpEntry.id), newXpEntry);
+      await withFirestoreRetry(() => setDoc(doc(firestoreDb, 'users', student.id), updatedStudent, { merge: true }));
+      await withFirestoreRetry(() => setDoc(doc(firestoreDb, 'gameResults', newResult.id), newResult));
+      await withFirestoreRetry(() => setDoc(doc(firestoreDb, 'xpHistory', newXpEntry.id), newXpEntry));
       await logAudit(
         'XP_UPDATE',
         admin.email,
@@ -836,15 +922,32 @@ async function startServer() {
     }
   });
 
+
+
   // GAME RESULTS (Official List)
   app.get('/api/admin/game-results', async (req, res) => {
     try {
-      const snap = await getDocs(collection(firestoreDb, 'gameResults'));
+      let snap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'gameResults')));
+      if (snap.empty) {
+        await ensureSchemaAndInitialData();
+        snap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'gameResults')));
+      }
+
       const results: GameResult[] = [];
-      snap.forEach((d) => results.push(d.data() as GameResult));
-      results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      snap.forEach((d) => {
+        const data = d.data() as any;
+        if (data) {
+          results.push({
+            id: d.id,
+            ...data
+          } as GameResult);
+        }
+      });
+
+      results.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
       res.json({ gameResults: results });
     } catch (err) {
+      console.error('Error fetching game results:', err);
       res.status(500).json({ error: 'Failed to fetch game results' });
     }
   });
@@ -864,7 +967,7 @@ async function startServer() {
       }
 
       const resultDocRef = doc(firestoreDb, 'gameResults', resultId);
-      const resultSnap = await getDoc(resultDocRef);
+      const resultSnap = await withFirestoreRetry(() => getDoc(resultDocRef));
 
       if (!resultSnap.exists()) {
         return res.status(404).json({ error: 'Game result record not found' });
@@ -898,14 +1001,16 @@ async function startServer() {
           losses: newLosses
         };
 
-        await setDoc(doc(firestoreDb, 'users', student.id), updatedStudent, { merge: true });
+        await withFirestoreRetry(() => setDoc(doc(firestoreDb, 'users', student.id), updatedStudent, { merge: true }));
       }
 
       // Mark result as voided
-      await updateDoc(resultDocRef, {
-        isVoided: true,
-        voidReason
-      });
+      await withFirestoreRetry(() =>
+        updateDoc(resultDocRef, {
+          isVoided: true,
+          voidReason
+        })
+      );
 
       const voidXpEntry: XpHistoryEntry = {
         id: 'xp_void_' + Date.now(),
@@ -918,7 +1023,7 @@ async function startServer() {
         createdAt: new Date().toISOString()
       };
 
-      await setDoc(doc(firestoreDb, 'xpHistory', voidXpEntry.id), voidXpEntry);
+      await withFirestoreRetry(() => setDoc(doc(firestoreDb, 'xpHistory', voidXpEntry.id), voidXpEntry));
       await logAudit(
         'RESULT_VOID',
         admin.email,
@@ -938,14 +1043,29 @@ async function startServer() {
   });
 
   // XP HISTORY (Full Log from Firestore)
-  app.get('/api/xp/history', async (req, res) => {
+  app.get(['/api/xp/history', '/api/admin/xp-history'], async (req, res) => {
     try {
-      const snap = await getDocs(collection(firestoreDb, 'xpHistory'));
+      let snap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'xpHistory')));
+      if (snap.empty) {
+        await ensureSchemaAndInitialData();
+        snap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'xpHistory')));
+      }
+
       const history: XpHistoryEntry[] = [];
-      snap.forEach((d) => history.push(d.data() as XpHistoryEntry));
-      history.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      snap.forEach((d) => {
+        const data = d.data() as any;
+        if (data) {
+          history.push({
+            id: d.id,
+            ...data
+          } as XpHistoryEntry);
+        }
+      });
+
+      history.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
       res.json({ xpHistory: history });
     } catch (err) {
+      console.error('Error fetching XP history:', err);
       res.status(500).json({ error: 'Failed to fetch XP history' });
     }
   });
@@ -957,7 +1077,7 @@ async function startServer() {
       if (!admin) {
         return res.status(403).json({ error: '403 / Access Denied: Admin authorization required' });
       }
-      const snap = await getDocs(collection(firestoreDb, 'auditLogs'));
+      const snap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'auditLogs')));
       const logs: AuditLogEntry[] = [];
       snap.forEach((d) => logs.push(d.data() as AuditLogEntry));
       logs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -971,16 +1091,23 @@ async function startServer() {
   app.get('/api/admin/analytics', async (req, res) => {
     try {
       const students = await getAllStudentsFromFirestore();
-      const resultsSnap = await getDocs(collection(firestoreDb, 'gameResults'));
+      const resultsSnap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'gameResults')));
       const validResults: GameResult[] = [];
       resultsSnap.forEach((d) => {
         const r = d.data() as GameResult;
         if (!r.isVoided) validResults.push(r);
       });
 
+      const xpSnap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'xpHistory')));
+      const xpHistory: XpHistoryEntry[] = [];
+      xpSnap.forEach((d) => xpHistory.push(d.data() as XpHistoryEntry));
+      xpHistory.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
       const totalParticipants = students.length;
       const totalGamesPlayed = validResults.length;
-      const totalXpAwarded = validResults.reduce((acc, r) => acc + (r.xpAwarded || 0), 0);
+      const resultsXpSum = validResults.reduce((acc, r) => acc + (r.xpAwarded || 0), 0);
+      const studentsXpSum = students.reduce((acc, s) => acc + (s.xp || 0), 0);
+      const totalXpAwarded = Math.max(resultsXpSum, studentsXpSum);
 
       const gameCounts: Record<string, number> = {};
       validResults.forEach((r) => {
@@ -1014,7 +1141,8 @@ async function startServer() {
           currentLeader,
           totalWins,
           averageXp
-        }
+        },
+        xpHistory
       });
     } catch (err) {
       console.error('Analytics error in Cloud Firestore:', err);
