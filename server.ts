@@ -23,6 +23,7 @@ import { User, GameResult, XpHistoryEntry, AuditLogEntry, RankTier, EventGame } 
 import { calculateRankTier } from './src/server/seedData.js';
 
 dotenv.config();
+dotenv.config({ path: 'env' });
 setLogLevel('error');
 
 const PORT = process.env.PORT || 3000;
@@ -90,6 +91,26 @@ const firestoreDb = getFirestore(appInstance);
 
 // --- FIRESTORE HELPER UTILITIES ---
 
+async function withFirestoreRetry<T>(op: () => Promise<T>, retries = 3, delayMs = 200): Promise<T> {
+  let lastErr: any;
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await op();
+    } catch (err: any) {
+      lastErr = err;
+      const isOffline =
+        err?.code === 'unavailable' ||
+        (err?.message && String(err.message).toLowerCase().includes('client is offline'));
+      if (isOffline && i < retries - 1) {
+        await new Promise((res) => setTimeout(res, delayMs * (i + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
 function stripPasswordHash(user: User): Omit<User, 'passwordHash'> {
   const { passwordHash, ...safeUser } = user;
   return {
@@ -99,26 +120,32 @@ function stripPasswordHash(user: User): Omit<User, 'passwordHash'> {
 }
 
 async function getUserById(userId: string): Promise<User | null> {
+  if (!userId || userId === 'null' || userId === 'undefined') return null;
   try {
-    const snap = await getDoc(doc(firestoreDb, 'users', userId));
+    const snap = await withFirestoreRetry(() => getDoc(doc(firestoreDb, 'users', userId)));
     if (snap.exists()) {
       return snap.data() as User;
     }
-  } catch (err) {
-    console.error(`Error fetching user ${userId} from Firestore:`, err);
+  } catch (err: any) {
+    if (err?.code === 'unavailable' || String(err?.message).includes('client is offline')) {
+      console.warn(`[Firestore Offline] Transient network issue reading user profile document ${userId}`);
+    } else {
+      console.error(`Error fetching user ${userId} from Firestore:`, err);
+    }
   }
   return null;
 }
 
 async function getUserByGamerTag(gamerTag: string): Promise<User | null> {
+  if (!gamerTag || !gamerTag.trim()) return null;
   try {
     const q = query(collection(firestoreDb, 'users'), where('gamerTag', '==', gamerTag.trim()));
-    const snap = await getDocs(q);
+    const snap = await withFirestoreRetry(() => getDocs(q));
     if (!snap.empty) {
       return snap.docs[0].data() as User;
     }
     // Case-insensitive fallback lookup
-    const allSnap = await getDocs(collection(firestoreDb, 'users'));
+    const allSnap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'users')));
     for (const d of allSnap.docs) {
       const u = d.data() as User;
       if (u.gamerTag && u.gamerTag.toLowerCase() === gamerTag.trim().toLowerCase()) {
@@ -132,14 +159,15 @@ async function getUserByGamerTag(gamerTag: string): Promise<User | null> {
 }
 
 async function getUserByEmail(email: string): Promise<User | null> {
+  if (!email || !email.trim()) return null;
   try {
     const q = query(collection(firestoreDb, 'users'), where('email', '==', email.trim()));
-    const snap = await getDocs(q);
+    const snap = await withFirestoreRetry(() => getDocs(q));
     if (!snap.empty) {
       return snap.docs[0].data() as User;
     }
     // Case-insensitive fallback
-    const allSnap = await getDocs(collection(firestoreDb, 'users'));
+    const allSnap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'users')));
     for (const d of allSnap.docs) {
       const u = d.data() as User;
       if (u.email && u.email.toLowerCase() === email.trim().toLowerCase()) {
@@ -154,7 +182,7 @@ async function getUserByEmail(email: string): Promise<User | null> {
 
 async function getAllStudentsFromFirestore(): Promise<User[]> {
   try {
-    const snap = await getDocs(collection(firestoreDb, 'users'));
+    const snap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'users')));
     const students: User[] = [];
     snap.forEach((docSnap) => {
       const u = docSnap.data() as User;
@@ -194,25 +222,42 @@ async function logAudit(
 }
 
 // Authentication Helpers
+const inFlightSessions = new Map<string, Promise<User | null>>();
+
 async function getAuthUser(req: express.Request): Promise<User | null> {
   const authHeader = req.headers.authorization;
   if (!authHeader) return null;
   const token = authHeader.replace('Bearer ', '').trim();
-  if (!token) return null;
+  if (!token || token === 'null' || token === 'undefined') return null;
 
-  try {
-    const sessionSnap = await getDoc(doc(firestoreDb, 'sessions', token));
-    if (!sessionSnap.exists()) return null;
-
-    const sessionData = sessionSnap.data();
-    const userId = sessionData?.userId;
-    if (!userId) return null;
-
-    return await getUserById(userId);
-  } catch (err) {
-    console.error('Error resolving auth user session from Firestore:', err);
-    return null;
+  if (inFlightSessions.has(token)) {
+    return inFlightSessions.get(token)!;
   }
+
+  const sessionPromise = (async () => {
+    try {
+      const sessionSnap = await withFirestoreRetry(() => getDoc(doc(firestoreDb, 'sessions', token)));
+      if (!sessionSnap.exists()) return null;
+
+      const sessionData = sessionSnap.data();
+      const userId = sessionData?.userId;
+      if (!userId || userId === 'null' || userId === 'undefined') return null;
+
+      return await getUserById(userId);
+    } catch (err: any) {
+      if (err?.code === 'unavailable' || String(err?.message).includes('client is offline')) {
+        console.warn(`[Firestore Offline] Transient network issue resolving session token: ${token.substring(0, 12)}...`);
+      } else {
+        console.error('Error resolving auth user session from Firestore:', err);
+      }
+      return null;
+    } finally {
+      inFlightSessions.delete(token);
+    }
+  })();
+
+  inFlightSessions.set(token, sessionPromise);
+  return sessionPromise;
 }
 
 async function getAdminUser(req: express.Request): Promise<User | null> {
@@ -578,11 +623,22 @@ async function startServer() {
 
   // GET CURRENT AUTHENTICATED USER
   app.get('/api/auth/me', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    const token = authHeader ? authHeader.replace('Bearer ', '').trim() : '';
+
+    if (!token || token === 'null' || token === 'undefined') {
+      return res.status(200).json({ user: null });
+    }
+
     try {
       const user = await getAuthUser(req);
-      if (!user) return res.status(401).json({ error: 'Unauthenticated' });
+      if (!user) return res.status(200).json({ user: null });
       res.json({ user: stripPasswordHash(user) });
-    } catch (err) {
+    } catch (err: any) {
+      const isOffline = err?.code === 'unavailable' || String(err?.message).includes('client is offline');
+      if (isOffline) {
+        return res.status(503).json({ error: 'Database temporarily offline', code: 'unavailable' });
+      }
       res.status(500).json({ error: 'Failed to fetch user session' });
     }
   });

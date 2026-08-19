@@ -53,18 +53,30 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  const isFetchingRef = React.useRef(false);
+
   // Fetch initial app data (leaderboard / student roster) and restore existing session
   const fetchData = async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
     try {
       setLoading(true);
 
+      const token = localStorage.getItem('hero_rank_token');
+      const hasToken = Boolean(token && token !== 'null' && token !== 'undefined' && token.trim() !== '');
+
+      const mePromise = hasToken
+        ? fetch('/api/auth/me', {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          })
+        : Promise.resolve(null);
+
       const [usersRes, meRes] = await Promise.all([
         fetch('/api/users'),
-        fetch('/api/auth/me', {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('hero_rank_token') || ''}`
-          }
-        })
+        mePromise
       ]);
 
       const usersData = await usersRes.json();
@@ -72,7 +84,7 @@ export default function App() {
         setStudents(usersData.users);
       }
 
-      if (meRes.ok) {
+      if (meRes && meRes.ok) {
         const meData = await meRes.json();
         if (meData.user) {
           setCurrentUser(meData.user);
@@ -86,6 +98,7 @@ export default function App() {
       console.error('Failed to load application data:', err);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
   };
 
