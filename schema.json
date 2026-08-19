@@ -23,8 +23,7 @@
         "Mongoose (MongoDB)"
       ],
       "persistence": [
-        "Local JSON Data Store (data_store.json)",
-        "MongoDB (Optional via MONGODB_URI)"
+        "Cloud Firestore (hackwell-fungames)"
       ]
     }
   },
