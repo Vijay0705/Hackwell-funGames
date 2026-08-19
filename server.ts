@@ -1,25 +1,33 @@
 import express from 'express';
 import path from 'path';
-import fs from 'fs';
 import crypto from 'crypto';
-import mongoose from 'mongoose';
+import dotenv from 'dotenv';
+import { initializeApp, getApps } from 'firebase/app';
+import {
+  getFirestore,
+  setLogLevel,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  collection,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit
+} from 'firebase/firestore';
 import { createServer as createViteServer } from 'vite';
 import { User, GameResult, XpHistoryEntry, AuditLogEntry, RankTier, EventGame } from './src/types.js';
-import {
-  INITIAL_USERS,
-  INITIAL_GAME_RESULTS,
-  INITIAL_XP_HISTORY,
-  INITIAL_AUDIT_LOGS,
-  calculateRankTier
-} from './src/server/seedData.js';
+import { calculateRankTier } from './src/server/seedData.js';
 
-const PORT = 3000;
-const DB_FILE = path.join(process.cwd(), 'data_store.json');
+dotenv.config();
+setLogLevel('error');
 
-// Mongoose Connection Setup if MONGODB_URI is provided
-const MONGODB_URI = process.env.MONGODB_URI;
+const PORT = process.env.PORT || 3000;
 
-// Password Hashing Helpers
+// Password Hashing Helpers using Scrypt
 export function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto.scryptSync(password, salt, 64).toString('hex');
@@ -27,193 +35,16 @@ export function hashPassword(password: string): string {
 }
 
 export function verifyPassword(password: string, combinedHash?: string): boolean {
-  if (!combinedHash || !combinedHash.includes(':')) return false;
+  if (!combinedHash) return false;
+  if (!combinedHash.includes(':')) {
+    return password === combinedHash;
+  }
   try {
     const [salt, originalHash] = combinedHash.split(':');
     const hash = crypto.scryptSync(password, salt, 64).toString('hex');
     return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(originalHash, 'hex'));
   } catch (e) {
     return false;
-  }
-}
-
-// Mongoose Models for MongoDB
-const userSchema = new mongoose.Schema({
-  id: { type: String, required: true, unique: true },
-  googleId: String,
-  email: { type: String, required: true, unique: true },
-  passwordHash: String,
-  fullName: { type: String, required: true },
-  gamerTag: { type: String, required: true },
-  avatar: String,
-  department: String,
-  teamName: String,
-  studentId: String,
-  role: { type: String, required: true },
-  xp: { type: Number, default: 0 },
-  rankTier: { type: String, default: 'Iron' },
-  gamesPlayed: { type: Number, default: 0 },
-  wins: { type: Number, default: 0 },
-  losses: { type: Number, default: 0 },
-  joinedAt: String
-});
-
-const gameResultSchema = new mongoose.Schema({
-  id: { type: String, required: true, unique: true },
-  userId: String,
-  userGamerTag: String,
-  userFullName: String,
-  game: String,
-  result: String,
-  moviesWon: Number,
-  xpAwarded: Number,
-  isVoided: Boolean,
-  voidReason: String,
-  recordedByAdmin: String,
-  createdAt: String
-});
-
-const xpHistorySchema = new mongoose.Schema({
-  id: { type: String, required: true, unique: true },
-  userId: String,
-  userGamerTag: String,
-  game: String,
-  result: String,
-  amount: Number,
-  performedBy: String,
-  createdAt: String
-});
-
-const auditLogSchema = new mongoose.Schema({
-  id: { type: String, required: true, unique: true },
-  action: String,
-  performedBy: String,
-  details: String,
-  ipAddress: String,
-  createdAt: String
-});
-
-const sessionSchema = new mongoose.Schema({
-  token: { type: String, required: true, unique: true },
-  userId: { type: String, required: true },
-  createdAt: { type: Date, default: Date.now, expires: '7d' }
-});
-
-const UserModel = mongoose.models.User || mongoose.model('User', userSchema);
-const GameResultModel = mongoose.models.GameResult || mongoose.model('GameResult', gameResultSchema);
-const XpHistoryModel = mongoose.models.XpHistory || mongoose.model('XpHistory', xpHistorySchema);
-const AuditLogModel = mongoose.models.AuditLog || mongoose.model('AuditLog', auditLogSchema);
-const SessionModel = mongoose.models.Session || mongoose.model('Session', sessionSchema);
-
-interface DatabaseSchema {
-  users: User[];
-  gameResults: GameResult[];
-  xpHistory: XpHistoryEntry[];
-  auditLogs: AuditLogEntry[];
-  sessions: Record<string, string>; // sessionToken -> userId
-  adminResetTokens: Record<string, { email: string; expiresAt: number }>;
-}
-
-let db: DatabaseSchema = {
-  users: [...INITIAL_USERS],
-  gameResults: [...INITIAL_GAME_RESULTS],
-  xpHistory: [...INITIAL_XP_HISTORY],
-  auditLogs: [...INITIAL_AUDIT_LOGS],
-  sessions: {},
-  adminResetTokens: {}
-};
-
-function loadDb() {
-  try {
-    if (fs.existsSync(DB_FILE)) {
-      const data = fs.readFileSync(DB_FILE, 'utf-8');
-      const parsed = JSON.parse(data);
-      if (parsed.users && parsed.gameResults) {
-        db = {
-          users: parsed.users || [],
-          gameResults: parsed.gameResults || [],
-          xpHistory: parsed.xpHistory || [],
-          auditLogs: parsed.auditLogs || [],
-          sessions: parsed.sessions || {},
-          adminResetTokens: parsed.adminResetTokens || {}
-        };
-      }
-    } else {
-      saveDb();
-    }
-  } catch (err) {
-    console.error('Failed to load local DB file, using initial data:', err);
-  }
-}
-
-function saveDb() {
-  try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf-8');
-  } catch (err) {
-    console.error('Failed to save DB file:', err);
-  }
-}
-
-async function ensureAdminExists() {
-  const adminEmail = 'ivijaysa@gmail.com';
-  const hashedVijayPass = hashPassword('vijay007');
-
-  let adminUser = db.users.find((u) => u.email.toLowerCase() === adminEmail.toLowerCase());
-
-  if (!adminUser) {
-    adminUser = {
-      id: 'usr_admin_vijay',
-      email: adminEmail,
-      fullName: 'Vijay S (Admin)',
-      gamerTag: 'Admin_Vijay',
-      avatar: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150',
-      department: 'Esports Commission',
-      studentId: 'ADM-2025-01',
-      role: 'ADMIN',
-      passwordHash: hashedVijayPass,
-      xp: 0,
-      rankTier: 'Iron',
-      gamesPlayed: 0,
-      wins: 0,
-      losses: 0,
-      joinedAt: '2025-01-01'
-    };
-    db.users.push(adminUser);
-  } else {
-    adminUser.email = adminEmail;
-    adminUser.role = 'ADMIN';
-    adminUser.passwordHash = hashedVijayPass;
-  }
-
-  saveDb();
-
-  // If MongoDB is connected, sync admin account to MongoDB
-  if (mongoose.connection.readyState === 1) {
-    try {
-      await UserModel.findOneAndUpdate(
-        { email: new RegExp(`^${adminEmail.replace(/[-[\]{}()*+?^$|#\s]/g, '\\$&')}$`, 'i') } as any,
-        {
-          id: adminUser.id,
-          email: adminEmail,
-          passwordHash: hashedVijayPass,
-          fullName: adminUser.fullName,
-          gamerTag: adminUser.gamerTag,
-          avatar: adminUser.avatar,
-          department: adminUser.department,
-          studentId: adminUser.studentId,
-          role: 'ADMIN',
-          xp: adminUser.xp || 0,
-          rankTier: adminUser.rankTier || 'Iron',
-          gamesPlayed: adminUser.gamesPlayed || 0,
-          wins: adminUser.wins || 0,
-          losses: adminUser.losses || 0,
-          joinedAt: adminUser.joinedAt || '2025-01-01'
-        },
-        { upsert: true, new: true }
-      );
-    } catch (err) {
-      console.error('Error syncing admin account into MongoDB:', err);
-    }
   }
 }
 
@@ -236,74 +67,118 @@ export function calculateXpForGame(game: string, result: string, moviesWon?: num
     }
     case 'Guess the PIN':
       return result === 'CORRECT WITHIN TIME' ? 10 : 0;
+    case 'Free Fire / BGMI':
+      return result === 'WIN' ? 60 : 0;
     default:
       return 0;
   }
 }
 
-async function startServer() {
-  loadDb();
+// Cloud Firestore Database Initialization
+const firebaseConfig = {
+  apiKey: process.env.VITE_FIREBASE_API_KEY,
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.VITE_FIREBASE_APP_ID,
+  measurementId: process.env.VITE_FIREBASE_MEASUREMENT_ID
+};
 
-  if (MONGODB_URI) {
-    try {
-      await mongoose.connect(MONGODB_URI);
-      console.log('Successfully connected to MongoDB');
-    } catch (err) {
-      console.warn('MongoDB connection error, falling back to local persistent file engine:', err);
+const appInstance = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const firestoreDb = getFirestore(appInstance);
+
+// --- FIRESTORE HELPER UTILITIES ---
+
+function stripPasswordHash(user: User): Omit<User, 'passwordHash'> {
+  const { passwordHash, ...safeUser } = user;
+  return {
+    ...safeUser,
+    rankTier: calculateRankTier(safeUser.xp || 0)
+  };
+}
+
+async function getUserById(userId: string): Promise<User | null> {
+  try {
+    const snap = await getDoc(doc(firestoreDb, 'users', userId));
+    if (snap.exists()) {
+      return snap.data() as User;
     }
+  } catch (err) {
+    console.error(`Error fetching user ${userId} from Firestore:`, err);
   }
+  return null;
+}
 
-  await ensureAdminExists();
-
-  const app = express();
-  app.use(express.json({ limit: '10mb' }));
-
-  // Helper Auth middleware
-  const getAuthUser = async (req: express.Request): Promise<User | null> => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return null;
-    const token = authHeader.replace('Bearer ', '').trim();
-    if (!token) return null;
-
-    let userId = db.sessions[token];
-
-    if (!userId && mongoose.connection.readyState === 1) {
-      try {
-        const sessionDoc = await SessionModel.findOne({ token } as any).exec();
-        if (sessionDoc) {
-          userId = sessionDoc.userId;
-        }
-      } catch (err) {
-        console.error('Error fetching session from MongoDB:', err);
+async function getUserByGamerTag(gamerTag: string): Promise<User | null> {
+  try {
+    const q = query(collection(firestoreDb, 'users'), where('gamerTag', '==', gamerTag.trim()));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      return snap.docs[0].data() as User;
+    }
+    // Case-insensitive fallback lookup
+    const allSnap = await getDocs(collection(firestoreDb, 'users'));
+    for (const d of allSnap.docs) {
+      const u = d.data() as User;
+      if (u.gamerTag && u.gamerTag.toLowerCase() === gamerTag.trim().toLowerCase()) {
+        return u;
       }
     }
+  } catch (err) {
+    console.error(`Error finding user by gamerTag ${gamerTag}:`, err);
+  }
+  return null;
+}
 
-    if (!userId) return null;
-
-    let user: User | null = db.users.find((u) => u.id === userId) || null;
-
-    if (!user && mongoose.connection.readyState === 1) {
-      try {
-        const userDoc = await UserModel.findOne({ id: userId } as any).exec();
-        if (userDoc) {
-          user = userDoc.toObject() as User;
-        }
-      } catch (err) {
-        console.error('Error fetching user from MongoDB:', err);
+async function getUserByEmail(email: string): Promise<User | null> {
+  try {
+    const q = query(collection(firestoreDb, 'users'), where('email', '==', email.trim()));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      return snap.docs[0].data() as User;
+    }
+    // Case-insensitive fallback
+    const allSnap = await getDocs(collection(firestoreDb, 'users'));
+    for (const d of allSnap.docs) {
+      const u = d.data() as User;
+      if (u.email && u.email.toLowerCase() === email.trim().toLowerCase()) {
+        return u;
       }
     }
+  } catch (err) {
+    console.error(`Error finding user by email ${email}:`, err);
+  }
+  return null;
+}
 
-    return user;
-  };
+async function getAllStudentsFromFirestore(): Promise<User[]> {
+  try {
+    const snap = await getDocs(collection(firestoreDb, 'users'));
+    const students: User[] = [];
+    snap.forEach((docSnap) => {
+      const u = docSnap.data() as User;
+      if (u.role === 'student' || u.role === 'participant') {
+        students.push({
+          ...u,
+          rankTier: calculateRankTier(u.xp || 0)
+        });
+      }
+    });
+    return students;
+  } catch (err) {
+    console.error('Error fetching all students from Firestore:', err);
+    return [];
+  }
+}
 
-  const getAdminUser = async (req: express.Request): Promise<User | null> => {
-    const user = await getAuthUser(req);
-    if (!user) return null;
-    if (user.role !== 'ADMIN' && user.role !== 'admin') return null;
-    return user;
-  };
-
-  const logAudit = (action: AuditLogEntry['action'], performedBy: string, details: string, req?: express.Request) => {
+async function logAudit(
+  action: AuditLogEntry['action'],
+  performedBy: string,
+  details: string,
+  req?: express.Request
+) {
+  try {
     const entry: AuditLogEntry = {
       id: 'audit_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
       action,
@@ -312,15 +187,95 @@ async function startServer() {
       ipAddress: req?.ip || '127.0.0.1',
       createdAt: new Date().toISOString()
     };
-    db.auditLogs.unshift(entry);
-    saveDb();
-  };
+    await setDoc(doc(firestoreDb, 'auditLogs', entry.id), entry);
+  } catch (err) {
+    console.error('Failed to write audit log to Firestore:', err);
+  }
+}
+
+// Authentication Helpers
+async function getAuthUser(req: express.Request): Promise<User | null> {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return null;
+  const token = authHeader.replace('Bearer ', '').trim();
+  if (!token) return null;
+
+  try {
+    const sessionSnap = await getDoc(doc(firestoreDb, 'sessions', token));
+    if (!sessionSnap.exists()) return null;
+
+    const sessionData = sessionSnap.data();
+    const userId = sessionData?.userId;
+    if (!userId) return null;
+
+    return await getUserById(userId);
+  } catch (err) {
+    console.error('Error resolving auth user session from Firestore:', err);
+    return null;
+  }
+}
+
+async function getAdminUser(req: express.Request): Promise<User | null> {
+  const user = await getAuthUser(req);
+  if (!user) return null;
+  if (user.role !== 'ADMIN' && user.role !== 'admin') return null;
+  return user;
+}
+
+// Seed default official admin account directly into Firestore if missing
+async function ensureAdminExists() {
+  const adminEmail = 'ivijaysa@gmail.com';
+  const hashedVijayPass = hashPassword('vijay007');
+
+  try {
+    const adminDocRef = doc(firestoreDb, 'users', 'usr_admin_vijay');
+    const adminSnap = await getDoc(adminDocRef);
+
+    if (!adminSnap.exists()) {
+      const adminUser: User = {
+        id: 'usr_admin_vijay',
+        email: adminEmail,
+        fullName: 'Vijay S (Admin)',
+        gamerTag: 'Admin_Vijay',
+        avatar: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150',
+        department: 'Esports Commission',
+        studentId: 'ADM-2025-01',
+        role: 'ADMIN',
+        passwordHash: hashedVijayPass,
+        xp: 0,
+        rankTier: 'Spark',
+        gamesPlayed: 0,
+        wins: 0,
+        losses: 0,
+        joinedAt: '2025-01-01'
+      };
+      await setDoc(adminDocRef, adminUser);
+      console.log('✅ Admin account (ivijaysa@gmail.com) verified and initialized in Cloud Firestore');
+    }
+  } catch (err) {
+    console.error('Error ensuring admin in Cloud Firestore:', err);
+  }
+}
+
+// --- SERVER INITIALIZATION ---
+
+async function startServer() {
+  console.log(`⚡ Initializing 100% Cloud Firestore Backend (Project: ${firebaseConfig.projectId})...`);
+  await ensureAdminExists();
+
+  const app = express();
+  app.use(express.json({ limit: '10mb' }));
 
   // --- API ROUTES ---
 
   // Health check
-  app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', serverTime: new Date().toISOString() });
+  app.get('/api/health', async (req, res) => {
+    res.json({
+      status: 'ok',
+      database: 'Cloud Firestore',
+      projectId: firebaseConfig.projectId,
+      serverTime: new Date().toISOString()
+    });
   });
 
   // PARTICIPANT AUTH: Sign Up / Registration
@@ -352,57 +307,34 @@ async function startServer() {
         });
       }
 
-      // Check existing username uniqueness
-      let existingUsernameUser = db.users.find(
-        (u) => u.gamerTag.toLowerCase() === trimmedUsername.toLowerCase()
-      );
-
-      if (!existingUsernameUser && mongoose.connection.readyState === 1) {
-        const doc = await UserModel.findOne({
-          gamerTag: new RegExp(`^${trimmedUsername.replace(/[-[\]{}()*+?^$|#\s]/g, '\\$&')}$`, 'i')
-        } as any).exec();
-        if (doc) {
-          existingUsernameUser = doc.toObject() as User;
-        }
-      }
-
-      if (existingUsernameUser) {
+      // Check username uniqueness in Firestore
+      const existingUserByTag = await getUserByGamerTag(trimmedUsername);
+      if (existingUserByTag) {
         return res.status(400).json({
           error: 'Username is already taken! Try another one. 👀'
         });
       }
 
-      // Check existing account detection (same full name & team name)
-      let existingAccount = db.users.find(
+      // Check if same student / team combo already registered
+      const allStudents = await getAllStudentsFromFirestore();
+      const duplicateAccount = allStudents.find(
         (u) =>
           u.fullName.toLowerCase() === trimmedName.toLowerCase() &&
           (u.teamName?.toLowerCase() === trimmedTeam.toLowerCase() ||
-            u.studentId.toLowerCase() === trimmedTeam.toLowerCase())
+            u.studentId?.toLowerCase() === trimmedTeam.toLowerCase())
       );
 
-      if (!existingAccount && mongoose.connection.readyState === 1) {
-        const doc = await UserModel.findOne({
-          fullName: new RegExp(`^${trimmedName.replace(/[-[\]{}()*+?^$|#\s]/g, '\\$&')}$`, 'i'),
-          $or: [
-            { teamName: new RegExp(`^${trimmedTeam.replace(/[-[\]{}()*+?^$|#\s]/g, '\\$&')}$`, 'i') },
-            { studentId: new RegExp(`^${trimmedTeam.replace(/[-[\]{}()*+?^$|#\s]/g, '\\$&')}$`, 'i') }
-          ]
-        } as any).exec();
-        if (doc) {
-          existingAccount = doc.toObject() as User;
-        }
-      }
-
-      if (existingAccount) {
+      if (duplicateAccount) {
         return res.status(400).json({
           error: 'Oops! You already exist! Try Logging In! 😎'
         });
       }
 
-      // Hash password securely
+      // Generate user record
       const passwordHash = hashPassword(password);
       const userId = 'usr_st_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
       const email = `${trimmedUsername.toLowerCase()}@gamingarena.edu`;
+      const token = 'token_st_' + Date.now() + '_' + userId;
 
       const newUser: User = {
         id: userId,
@@ -416,45 +348,29 @@ async function startServer() {
         studentId: trimmedTeam,
         role: 'student',
         xp: 0,
-        rankTier: 'Iron',
+        rankTier: 'Spark',
         gamesPlayed: 0,
         wins: 0,
         losses: 0,
         joinedAt: new Date().toISOString().split('T')[0]
       };
 
-      db.users.push(newUser);
-      saveDb();
+      // Write directly to Cloud Firestore
+      await setDoc(doc(firestoreDb, 'users', newUser.id), newUser);
+      await setDoc(doc(firestoreDb, 'sessions', token), {
+        token,
+        userId: newUser.id,
+        createdAt: new Date().toISOString()
+      });
 
-      if (mongoose.connection.readyState === 1) {
-        try {
-          await UserModel.create(newUser);
-        } catch (e) {
-          console.error('Failed to create user in MongoDB:', e);
-        }
-      }
-
-      const token = 'token_st_' + Date.now() + '_' + newUser.id;
-      db.sessions[token] = newUser.id;
-      saveDb();
-
-      if (mongoose.connection.readyState === 1) {
-        try {
-          await SessionModel.create({ token, userId: newUser.id });
-        } catch (e) {
-          console.error('Failed to create session in MongoDB:', e);
-        }
-      }
-
-      const { passwordHash: _, ...safeUser } = newUser;
       res.status(201).json({
         success: true,
-        message: 'Account registered successfully!',
+        message: 'Account registered successfully in Cloud Firestore!',
         token,
-        user: safeUser
+        user: stripPasswordHash(newUser)
       });
     } catch (err) {
-      console.error('Registration error:', err);
+      console.error('Registration error in Cloud Firestore:', err);
       res.status(500).json({ error: 'Registration failed. Please try again.' });
     }
   });
@@ -470,25 +386,10 @@ async function startServer() {
 
       const queryStr = username.trim();
 
-      let user: User | null =
-        db.users.find(
-          (u) =>
-            u.gamerTag.toLowerCase() === queryStr.toLowerCase() ||
-            u.email.toLowerCase() === queryStr.toLowerCase()
-        ) || null;
-
-      if (!user && mongoose.connection.readyState === 1) {
-        try {
-          const doc = await UserModel.findOne({
-            $or: [
-              { gamerTag: new RegExp(`^${queryStr.replace(/[-[\]{}()*+?^$|#\s]/g, '\\$&')}$`, 'i') },
-              { email: new RegExp(`^${queryStr.replace(/[-[\]{}()*+?^$|#\s]/g, '\\$&')}$`, 'i') }
-            ]
-          } as any).exec();
-          if (doc) user = doc.toObject() as User;
-        } catch (dbErr) {
-          console.error('MongoDB lookup error during login:', dbErr);
-        }
+      // Find user by gamerTag or email directly in Firestore
+      let user = await getUserByGamerTag(queryStr);
+      if (!user) {
+        user = await getUserByEmail(queryStr);
       }
 
       if (!user) {
@@ -501,70 +402,79 @@ async function startServer() {
       }
 
       const token = 'token_st_' + Date.now() + '_' + user.id;
-      db.sessions[token] = user.id;
-      saveDb();
 
-      if (mongoose.connection.readyState === 1) {
-        try {
-          await SessionModel.create({ token, userId: user.id });
-        } catch (e) {
-          console.error('Failed to create session in MongoDB:', e);
-        }
-      }
+      // Save session in Cloud Firestore
+      await setDoc(doc(firestoreDb, 'sessions', token), {
+        token,
+        userId: user.id,
+        createdAt: new Date().toISOString()
+      });
 
-      const { passwordHash: _, ...safeUser } = user;
-      res.json({ token, user: safeUser });
+      res.json({ token, user: stripPasswordHash(user) });
     } catch (err) {
-      console.error('Login error:', err);
+      console.error('Login error in Cloud Firestore:', err);
       res.status(500).json({ error: 'Login failed. Please try again.' });
     }
   });
 
   // STUDENT AUTH: Google / Student Login
-  app.post('/api/auth/student-google', (req, res) => {
-    const { email, fullName, avatar, googleId, department, studentId, gamerTag } = req.body;
+  app.post('/api/auth/student-google', async (req, res) => {
+    try {
+      const { email, fullName, avatar, googleId, department, studentId, gamerTag } = req.body;
 
-    if (!email) {
-      return res.status(400).json({ error: 'Google account email is required' });
+      if (!email) {
+        return res.status(400).json({ error: 'Google account email is required' });
+      }
+
+      let user = await getUserByEmail(email);
+
+      if (!user) {
+        const username = gamerTag || email.split('@')[0] || 'Player';
+        user = {
+          id: 'usr_st_' + Date.now(),
+          googleId: googleId || 'g_' + Date.now(),
+          email,
+          fullName: fullName || username,
+          gamerTag: username,
+          avatar: avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+          department: department || 'CSE',
+          teamName: studentId || 'Team Apex',
+          studentId: studentId || 'ST-' + Math.floor(1000 + Math.random() * 9000),
+          role: 'student',
+          xp: 0,
+          rankTier: 'Spark',
+          gamesPlayed: 0,
+          wins: 0,
+          losses: 0,
+          joinedAt: new Date().toISOString().split('T')[0]
+        };
+        await setDoc(doc(firestoreDb, 'users', user.id), user);
+      } else {
+        const updates: Partial<User> = {};
+        if (fullName) updates.fullName = fullName;
+        if (avatar) updates.avatar = avatar;
+        if (googleId) updates.googleId = googleId;
+        if (Object.keys(updates).length > 0) {
+          await updateDoc(doc(firestoreDb, 'users', user.id), updates);
+          user = { ...user, ...updates };
+        }
+      }
+
+      const token = 'token_st_' + Date.now() + '_' + user.id;
+      await setDoc(doc(firestoreDb, 'sessions', token), {
+        token,
+        userId: user.id,
+        createdAt: new Date().toISOString()
+      });
+
+      res.json({ token, user: stripPasswordHash(user) });
+    } catch (err) {
+      console.error('Google sign-in error:', err);
+      res.status(500).json({ error: 'Google authentication failed.' });
     }
-
-    let user = db.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-
-    if (!user) {
-      const username = gamerTag || email.split('@')[0] || 'Player';
-      user = {
-        id: 'usr_st_' + Date.now(),
-        googleId: googleId || 'g_' + Date.now(),
-        email,
-        fullName: fullName || username,
-        gamerTag: username,
-        avatar: avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-        department: department || 'Computer Science',
-        studentId: studentId || 'ST-' + Math.floor(1000 + Math.random() * 9000),
-        role: 'student',
-        xp: 0,
-        rankTier: 'Iron',
-        gamesPlayed: 0,
-        wins: 0,
-        losses: 0,
-        joinedAt: new Date().toISOString().split('T')[0]
-      };
-      db.users.push(user);
-    } else {
-      if (fullName) user.fullName = fullName;
-      if (avatar) user.avatar = avatar;
-      if (googleId) user.googleId = googleId;
-    }
-
-    const token = 'token_st_' + Date.now() + '_' + user.id;
-    db.sessions[token] = user.id;
-    saveDb();
-
-    const { passwordHash, ...safeUser } = user;
-    res.json({ token, user: safeUser });
   });
 
-  // ADMIN AUTH: Login (Supports both /api/auth/admin-login and /api/admin/admin-login)
+  // ADMIN AUTH: Login
   app.post(['/api/auth/admin-login', '/api/admin/admin-login'], async (req, res) => {
     try {
       const { email, password } = req.body;
@@ -573,405 +483,487 @@ async function startServer() {
         return res.status(401).json({ error: 'Invalid admin credentials.' });
       }
 
-      let adminUser: User | null = null;
+      const adminUser = await getUserByEmail(email);
 
-      // Check MongoDB if connected
-      if (mongoose.connection.readyState === 1) {
-        try {
-          const doc = await UserModel.findOne({
-            email: new RegExp(`^${email.replace(/[-[\]{}()*+?^$|#\s]/g, '\\$&')}$`, 'i'),
-            role: { $in: ['ADMIN', 'admin'] }
-          } as any).exec();
-
-          if (doc) {
-            adminUser = doc.toObject() as User;
-          }
-        } catch (dbErr) {
-          console.error('MongoDB query error during admin lookup:', dbErr);
-          return res.status(500).json({ error: 'Unable to connect to the authentication service. Please try again.' });
-        }
-      }
-
-      // Fallback to local DB if not found in Mongo or Mongo not connected
-      if (!adminUser) {
-        adminUser =
-          db.users.find(
-            (u) =>
-              (u.role === 'ADMIN' || u.role === 'admin') &&
-              u.email.toLowerCase() === email.toLowerCase()
-          ) || null;
-      }
-
-      if (!adminUser) {
+      if (!adminUser || (adminUser.role !== 'ADMIN' && adminUser.role !== 'admin')) {
         return res.status(401).json({ error: 'Invalid admin credentials.' });
       }
 
-      // Password verification
       const isValid = verifyPassword(password, adminUser.passwordHash);
-
       if (!isValid) {
         return res.status(401).json({ error: 'Invalid admin credentials.' });
       }
 
-      // Create secure authenticated session
       const token = 'token_adm_' + Date.now() + '_' + Math.random().toString(36).substring(2);
 
-      try {
-        db.sessions[token] = adminUser.id;
-        saveDb();
+      // Store admin session directly in Firestore
+      await setDoc(doc(firestoreDb, 'sessions', token), {
+        token,
+        userId: adminUser.id,
+        createdAt: new Date().toISOString()
+      });
 
-        if (mongoose.connection.readyState === 1) {
-          await SessionModel.create({ token, userId: adminUser.id });
-        }
-      } catch (sessErr) {
-        console.error('Failed to create session:', sessErr);
-        return res.status(500).json({ error: 'Authentication failed. Please try again.' });
-      }
+      await logAudit('ADMIN_LOGIN', adminUser.email, 'Admin signed in successfully', req);
 
-      logAudit('ADMIN_LOGIN', adminUser.email, 'Admin signed in successfully', req);
-
-      const { passwordHash, ...safeUser } = adminUser;
-      res.json({ token, user: { ...safeUser, role: 'ADMIN' } });
+      res.json({ token, user: { ...stripPasswordHash(adminUser), role: 'ADMIN' } });
     } catch (err) {
-      console.error('Unexpected admin login error:', err);
+      console.error('Admin login error:', err);
       res.status(500).json({ error: 'Authentication failed. Please try again.' });
     }
   });
 
   // ADMIN FORGOT PASSWORD
-  app.post('/api/admin/forgot-password', (req, res) => {
-    const { email } = req.body;
-    const admin = db.users.find((u) => (u.role === 'ADMIN' || u.role === 'admin') && u.email.toLowerCase() === (email || '').toLowerCase());
+  app.post('/api/admin/forgot-password', async (req, res) => {
+    try {
+      const { email } = req.body;
+      const admin = await getUserByEmail(email || '');
 
-    if (!admin) {
-      return res.status(404).json({ error: 'No admin account found with that email address' });
+      if (!admin || (admin.role !== 'ADMIN' && admin.role !== 'admin')) {
+        return res.status(404).json({ error: 'No admin account found with that email address' });
+      }
+
+      const resetToken = 'reset_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+      await setDoc(doc(firestoreDb, 'adminResetTokens', resetToken), {
+        email: admin.email,
+        expiresAt: Date.now() + 3600000
+      });
+
+      await logAudit('PASSWORD_RESET', admin.email, `Password reset token requested for ${admin.email}`, req);
+
+      res.json({ success: true, message: 'Password reset code generated.', resetToken });
+    } catch (err) {
+      console.error('Forgot password error:', err);
+      res.status(500).json({ error: 'Failed to process password reset request.' });
     }
-
-    const resetToken = 'reset_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
-    db.adminResetTokens[resetToken] = {
-      email: admin.email,
-      expiresAt: Date.now() + 3600000
-    };
-
-    logAudit('PASSWORD_RESET', admin.email, `Password reset token requested for ${admin.email}`, req);
-    saveDb();
-
-    res.json({ success: true, message: 'Password reset code generated.', resetToken });
   });
 
   // ADMIN RESET PASSWORD
-  app.post('/api/admin/reset-password', (req, res) => {
-    const { resetToken, newPassword } = req.body;
+  app.post('/api/admin/reset-password', async (req, res) => {
+    try {
+      const { resetToken, newPassword } = req.body;
 
-    if (!resetToken || !newPassword) {
-      return res.status(400).json({ error: 'Reset token and new password are required' });
-    }
-
-    const tokenData = db.adminResetTokens[resetToken];
-    if (!tokenData || tokenData.expiresAt < Date.now()) {
-      return res.status(400).json({ error: 'Invalid or expired reset token' });
-    }
-
-    const admin = db.users.find((u) => u.email.toLowerCase() === tokenData.email.toLowerCase());
-    if (admin) {
-      admin.passwordHash = hashPassword(newPassword);
-      if (mongoose.connection.readyState === 1) {
-        UserModel.updateOne({ email: admin.email }, { passwordHash: admin.passwordHash }).catch(console.error);
+      if (!resetToken || !newPassword) {
+        return res.status(400).json({ error: 'Reset token and new password are required' });
       }
+
+      const tokenDocRef = doc(firestoreDb, 'adminResetTokens', resetToken);
+      const tokenSnap = await getDoc(tokenDocRef);
+
+      if (!tokenSnap.exists()) {
+        return res.status(400).json({ error: 'Invalid or expired reset token' });
+      }
+
+      const tokenData = tokenSnap.data();
+      if (!tokenData || tokenData.expiresAt < Date.now()) {
+        await deleteDoc(tokenDocRef);
+        return res.status(400).json({ error: 'Invalid or expired reset token' });
+      }
+
+      const admin = await getUserByEmail(tokenData.email);
+      if (admin) {
+        await updateDoc(doc(firestoreDb, 'users', admin.id), {
+          passwordHash: hashPassword(newPassword)
+        });
+      }
+
+      await deleteDoc(tokenDocRef);
+      await logAudit('PASSWORD_RESET', tokenData.email, `Password updated for admin ${tokenData.email}`, req);
+
+      res.json({ success: true, message: 'Password reset successfully. Please log in with your new password.' });
+    } catch (err) {
+      console.error('Reset password error:', err);
+      res.status(500).json({ error: 'Failed to reset password.' });
     }
-
-    delete db.adminResetTokens[resetToken];
-    logAudit('PASSWORD_RESET', tokenData.email, `Password updated for admin ${tokenData.email}`, req);
-    saveDb();
-
-    res.json({ success: true, message: 'Password reset successfully. Please log in with your new password.' });
   });
 
-  // GET AUTH ME
+  // GET CURRENT AUTHENTICATED USER
   app.get('/api/auth/me', async (req, res) => {
-    const user = await getAuthUser(req);
-    if (!user) return res.status(401).json({ error: 'Unauthenticated' });
-    const { passwordHash, ...safeUser } = user;
-    res.json({ user: safeUser });
+    try {
+      const user = await getAuthUser(req);
+      if (!user) return res.status(401).json({ error: 'Unauthenticated' });
+      res.json({ user: stripPasswordHash(user) });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch user session' });
+    }
   });
 
   // LOGOUT
   app.post('/api/auth/logout', async (req, res) => {
-    const authHeader = req.headers.authorization;
-    if (authHeader) {
-      const token = authHeader.replace('Bearer ', '').trim();
-      delete db.sessions[token];
-      saveDb();
-
-      if (mongoose.connection.readyState === 1) {
-        try {
-          await SessionModel.deleteOne({ token });
-        } catch (e) {
-          console.error('Error deleting session from Mongo:', e);
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader) {
+        const token = authHeader.replace('Bearer ', '').trim();
+        if (token) {
+          await deleteDoc(doc(firestoreDb, 'sessions', token));
         }
       }
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Logout failed' });
     }
-    res.json({ success: true });
   });
 
-  // LEADERBOARD
-  app.get('/api/leaderboard', (req, res) => {
-    const { search } = req.query;
+  // LEADERBOARD (Direct Live Query from Cloud Firestore)
+  app.get('/api/leaderboard', async (req, res) => {
+    try {
+      const { search } = req.query;
+      let students = await getAllStudentsFromFirestore();
 
-    let students = db.users.filter((u) => u.role === 'student');
+      if (search) {
+        const queryStr = (search as string).toLowerCase();
+        students = students.filter(
+          (u) =>
+            u.gamerTag.toLowerCase().includes(queryStr) ||
+            u.fullName.toLowerCase().includes(queryStr) ||
+            u.department.toLowerCase().includes(queryStr) ||
+            u.studentId.toLowerCase().includes(queryStr)
+        );
+      }
 
-    if (search) {
-      const query = (search as string).toLowerCase();
-      students = students.filter(
-        (u) =>
-          u.gamerTag.toLowerCase().includes(query) ||
-          u.fullName.toLowerCase().includes(query) ||
-          u.department.toLowerCase().includes(query) ||
-          u.studentId.toLowerCase().includes(query)
-      );
-    }
+      // Sort strictly by XP descending, then Wins descending, then GamerTag
+      students.sort((a, b) => {
+        if ((b.xp || 0) !== (a.xp || 0)) return (b.xp || 0) - (a.xp || 0);
+        if ((b.wins || 0) !== (a.wins || 0)) return (b.wins || 0) - (a.wins || 0);
+        return a.gamerTag.localeCompare(b.gamerTag);
+      });
 
-    students.sort((a, b) => {
-      if (b.xp !== a.xp) return b.xp - a.xp;
-      if (b.wins !== a.wins) return b.wins - a.wins;
-      return a.gamerTag.localeCompare(b.gamerTag);
-    });
-
-    const leaderboard = students.map((user, index) => {
-      const { passwordHash, ...safe } = user;
-      return {
-        ...safe,
+      const leaderboard = students.map((user, index) => ({
+        ...stripPasswordHash(user),
         rank: index + 1
-      };
-    });
+      }));
 
-    res.json({
-      leaderboard,
-      totalStudents: leaderboard.length,
-      lastUpdated: new Date().toISOString()
-    });
+      res.json({
+        leaderboard,
+        totalStudents: leaderboard.length,
+        lastUpdated: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error('Error fetching live leaderboard from Firestore:', err);
+      res.status(500).json({ error: 'Failed to fetch leaderboard' });
+    }
   });
 
-  // GET ALL PLAYERS
-  app.get('/api/users', (req, res) => {
-    const students = db.users.filter((u) => u.role === 'student').map((u) => {
-      const { passwordHash, ...safe } = u;
-      return safe;
-    });
-    res.json({ users: students });
+  // GET ALL PLAYERS / ROSTER
+  app.get('/api/users', async (req, res) => {
+    try {
+      const students = await getAllStudentsFromFirestore();
+      res.json({ users: students.map(stripPasswordHash) });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch players' });
+    }
   });
 
-  // GET PLAYER PROFILE + GAME HISTORY
-  app.get('/api/users/:id', (req, res) => {
-    const user = db.users.find((u) => u.id === req.params.id);
-    if (!user) return res.status(404).json({ error: 'Player profile not found' });
+  // GET PLAYER PROFILE + OFFICIAL GAME & XP HISTORY
+  app.get('/api/users/:id', async (req, res) => {
+    try {
+      const user = await getUserById(req.params.id);
+      if (!user) return res.status(404).json({ error: 'Player profile not found' });
 
-    const { passwordHash, ...safeUser } = user;
-    const userResults = db.gameResults.filter((r) => r.userId === user.id && !r.isVoided);
-    const userXpHistory = db.xpHistory.filter((x) => x.userId === user.id);
+      // Query results and XP history directly from Cloud Firestore
+      const resultsSnap = await getDocs(
+        query(collection(firestoreDb, 'gameResults'), where('userId', '==', user.id))
+      );
+      const userResults: GameResult[] = [];
+      resultsSnap.forEach((d) => {
+        const r = d.data() as GameResult;
+        if (!r.isVoided) {
+          userResults.push(r);
+        }
+      });
+      userResults.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    res.json({ user: safeUser, gameResults: userResults, xpHistory: userXpHistory });
+      const xpSnap = await getDocs(
+        query(collection(firestoreDb, 'xpHistory'), where('userId', '==', user.id))
+      );
+      const userXpHistory: XpHistoryEntry[] = [];
+      xpSnap.forEach((d) => {
+        userXpHistory.push(d.data() as XpHistoryEntry);
+      });
+      userXpHistory.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      res.json({
+        user: stripPasswordHash(user),
+        gameResults: userResults,
+        xpHistory: userXpHistory
+      });
+    } catch (err) {
+      console.error('Error fetching player profile from Firestore:', err);
+      res.status(500).json({ error: 'Failed to fetch player details' });
+    }
   });
 
-  // UPDATE EVENT POINTS (ADMIN ONLY)
+  // UPDATE EVENT POINTS (ADMIN ONLY - Direct Cloud Firestore Transaction)
   app.post('/api/admin/update-points', async (req, res) => {
-    const admin = await getAdminUser(req);
-    if (!admin) {
-      return res.status(403).json({ error: '403 / Access Denied: Admin authorization required' });
+    try {
+      const admin = await getAdminUser(req);
+      if (!admin) {
+        return res.status(403).json({ error: '403 / Access Denied: Admin authorization required' });
+      }
+
+      const { userId, game, result, moviesWon } = req.body;
+
+      if (!userId || !game || !result) {
+        return res.status(400).json({ error: 'Missing required parameters: userId, game, result' });
+      }
+
+      const student = await getUserById(userId);
+      if (!student || (student.role !== 'student' && student.role !== 'participant')) {
+        return res.status(404).json({ error: 'Selected student participant not found' });
+      }
+
+      const xpAwarded = calculateXpForGame(game, result, moviesWon);
+      const isWin =
+        result === 'WIN' ||
+        result === 'CORRECT WITHIN TIME' ||
+        (game === 'Dumb Charades' && (moviesWon || 0) > 0);
+
+      const newXp = Math.max(0, (student.xp || 0) + xpAwarded);
+      const newRankTier = calculateRankTier(newXp);
+      const newGamesPlayed = (student.gamesPlayed || 0) + 1;
+      const newWins = isWin ? (student.wins || 0) + 1 : student.wins || 0;
+      const newLosses = !isWin ? (student.losses || 0) + 1 : student.losses || 0;
+
+      const updatedStudent: User = {
+        ...student,
+        xp: newXp,
+        rankTier: newRankTier,
+        gamesPlayed: newGamesPlayed,
+        wins: newWins,
+        losses: newLosses
+      };
+
+      const newResult: GameResult = {
+        id: 'res_' + Date.now(),
+        userId: student.id,
+        userGamerTag: student.gamerTag,
+        userFullName: student.fullName,
+        game: game as EventGame,
+        result: result,
+        moviesWon: game === 'Dumb Charades' ? Math.max(0, parseInt(String(moviesWon || 0), 10) || 0) : undefined,
+        xpAwarded,
+        isVoided: false,
+        recordedByAdmin: admin.email,
+        createdAt: new Date().toISOString()
+      };
+
+      const newXpEntry: XpHistoryEntry = {
+        id: 'xp_' + Date.now(),
+        userId: student.id,
+        userGamerTag: student.gamerTag,
+        game,
+        result: game === 'Dumb Charades' ? `WIN (${newResult.moviesWon} Movies)` : result,
+        amount: xpAwarded,
+        performedBy: admin.email,
+        createdAt: new Date().toISOString()
+      };
+
+      // Write directly to Cloud Firestore collections
+      await setDoc(doc(firestoreDb, 'users', student.id), updatedStudent, { merge: true });
+      await setDoc(doc(firestoreDb, 'gameResults', newResult.id), newResult);
+      await setDoc(doc(firestoreDb, 'xpHistory', newXpEntry.id), newXpEntry);
+      await logAudit(
+        'XP_UPDATE',
+        admin.email,
+        `Awarded +${xpAwarded} XP to ${student.fullName} (${student.gamerTag}) for ${game} [${result}]`,
+        req
+      );
+
+      res.json({
+        success: true,
+        user: stripPasswordHash(updatedStudent),
+        gameResult: newResult,
+        xpEntry: newXpEntry
+      });
+    } catch (err) {
+      console.error('Error recording points in Cloud Firestore:', err);
+      res.status(500).json({ error: 'Failed to record event match result' });
     }
-
-    const { userId, game, result, moviesWon } = req.body;
-
-    if (!userId || !game || !result) {
-      return res.status(400).json({ error: 'Missing required parameters: userId, game, result' });
-    }
-
-    const student = db.users.find((u) => u.id === userId && u.role === 'student');
-    if (!student) {
-      return res.status(404).json({ error: 'Selected student participant not found' });
-    }
-
-    const xpAwarded = calculateXpForGame(game, result, moviesWon);
-
-    const isWin = result === 'WIN' || result === 'CORRECT WITHIN TIME' || (game === 'Dumb Charades' && (moviesWon || 0) > 0);
-
-    student.xp = Math.max(0, student.xp + xpAwarded);
-    student.rankTier = calculateRankTier(student.xp);
-    student.gamesPlayed += 1;
-    if (isWin) {
-      student.wins += 1;
-    } else {
-      student.losses += 1;
-    }
-
-    const newResult: GameResult = {
-      id: 'res_' + Date.now(),
-      userId: student.id,
-      userGamerTag: student.gamerTag,
-      userFullName: student.fullName,
-      game: game as EventGame,
-      result: result,
-      moviesWon: game === 'Dumb Charades' ? Math.max(0, parseInt(String(moviesWon || 0), 10) || 0) : undefined,
-      xpAwarded,
-      isVoided: false,
-      recordedByAdmin: admin.email,
-      createdAt: new Date().toISOString()
-    };
-    db.gameResults.unshift(newResult);
-
-    const newXpEntry: XpHistoryEntry = {
-      id: 'xp_' + Date.now(),
-      userId: student.id,
-      userGamerTag: student.gamerTag,
-      game,
-      result: game === 'Dumb Charades' ? `WIN (${newResult.moviesWon} Movies)` : result,
-      amount: xpAwarded,
-      performedBy: admin.email,
-      createdAt: new Date().toISOString()
-    };
-    db.xpHistory.unshift(newXpEntry);
-
-    logAudit(
-      'XP_UPDATE',
-      admin.email,
-      `Awarded +${xpAwarded} XP to ${student.fullName} (${student.gamerTag}) for ${game} [${result}]`,
-      req
-    );
-
-    saveDb();
-
-    const { passwordHash, ...safeStudent } = student;
-
-    res.json({
-      success: true,
-      user: safeStudent,
-      gameResult: newResult,
-      xpEntry: newXpEntry
-    });
   });
 
   // GAME RESULTS (Official List)
-  app.get('/api/admin/game-results', (req, res) => {
-    res.json({ gameResults: db.gameResults });
+  app.get('/api/admin/game-results', async (req, res) => {
+    try {
+      const snap = await getDocs(collection(firestoreDb, 'gameResults'));
+      const results: GameResult[] = [];
+      snap.forEach((d) => results.push(d.data() as GameResult));
+      results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      res.json({ gameResults: results });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch game results' });
+    }
   });
 
-  // VOID / CORRECT A GAME RESULT (ADMIN ONLY)
+  // VOID / CORRECT A GAME RESULT (ADMIN ONLY - Direct Cloud Firestore)
   app.post('/api/admin/void-result', async (req, res) => {
-    const admin = await getAdminUser(req);
-    if (!admin) {
-      return res.status(403).json({ error: '403 / Access Denied: Admin authorization required' });
-    }
-
-    const { resultId, voidReason } = req.body;
-
-    if (!resultId || !voidReason) {
-      return res.status(400).json({ error: 'resultId and voidReason are required' });
-    }
-
-    const result = db.gameResults.find((r) => r.id === resultId);
-    if (!result) {
-      return res.status(404).json({ error: 'Game result record not found' });
-    }
-
-    if (result.isVoided) {
-      return res.status(400).json({ error: 'This game result has already been voided' });
-    }
-
-    const student = db.users.find((u) => u.id === result.userId);
-    if (student) {
-      student.xp = Math.max(0, student.xp - result.xpAwarded);
-      student.rankTier = calculateRankTier(student.xp);
-      student.gamesPlayed = Math.max(0, student.gamesPlayed - 1);
-
-      const isWin = result.result === 'WIN' || result.result === 'CORRECT WITHIN TIME' || (result.game === 'Dumb Charades' && (result.moviesWon || 0) > 0);
-      if (isWin) {
-        student.wins = Math.max(0, student.wins - 1);
-      } else {
-        student.losses = Math.max(0, student.losses - 1);
+    try {
+      const admin = await getAdminUser(req);
+      if (!admin) {
+        return res.status(403).json({ error: '403 / Access Denied: Admin authorization required' });
       }
+
+      const { resultId, voidReason } = req.body;
+
+      if (!resultId || !voidReason) {
+        return res.status(400).json({ error: 'resultId and voidReason are required' });
+      }
+
+      const resultDocRef = doc(firestoreDb, 'gameResults', resultId);
+      const resultSnap = await getDoc(resultDocRef);
+
+      if (!resultSnap.exists()) {
+        return res.status(404).json({ error: 'Game result record not found' });
+      }
+
+      const result = resultSnap.data() as GameResult;
+      if (result.isVoided) {
+        return res.status(400).json({ error: 'This game result has already been voided' });
+      }
+
+      const student = await getUserById(result.userId);
+      let updatedStudent: User | undefined = undefined;
+
+      if (student) {
+        const isWin =
+          result.result === 'WIN' ||
+          result.result === 'CORRECT WITHIN TIME' ||
+          (result.game === 'Dumb Charades' && (result.moviesWon || 0) > 0);
+
+        const newXp = Math.max(0, (student.xp || 0) - result.xpAwarded);
+        const newWins = isWin ? Math.max(0, (student.wins || 0) - 1) : student.wins || 0;
+        const newLosses = !isWin ? Math.max(0, (student.losses || 0) - 1) : student.losses || 0;
+        const newGamesPlayed = Math.max(0, (student.gamesPlayed || 0) - 1);
+
+        updatedStudent = {
+          ...student,
+          xp: newXp,
+          rankTier: calculateRankTier(newXp),
+          gamesPlayed: newGamesPlayed,
+          wins: newWins,
+          losses: newLosses
+        };
+
+        await setDoc(doc(firestoreDb, 'users', student.id), updatedStudent, { merge: true });
+      }
+
+      // Mark result as voided
+      await updateDoc(resultDocRef, {
+        isVoided: true,
+        voidReason
+      });
+
+      const voidXpEntry: XpHistoryEntry = {
+        id: 'xp_void_' + Date.now(),
+        userId: result.userId,
+        userGamerTag: result.userGamerTag,
+        game: result.game,
+        result: `VOIDED: ${voidReason}`,
+        amount: -result.xpAwarded,
+        performedBy: admin.email,
+        createdAt: new Date().toISOString()
+      };
+
+      await setDoc(doc(firestoreDb, 'xpHistory', voidXpEntry.id), voidXpEntry);
+      await logAudit(
+        'RESULT_VOID',
+        admin.email,
+        `Voided game result ${resultId} for ${result.userGamerTag}. Reason: ${voidReason}`,
+        req
+      );
+
+      res.json({
+        success: true,
+        result: { ...result, isVoided: true, voidReason },
+        user: updatedStudent ? stripPasswordHash(updatedStudent) : undefined
+      });
+    } catch (err) {
+      console.error('Error voiding result in Cloud Firestore:', err);
+      res.status(500).json({ error: 'Failed to void result' });
     }
-
-    result.isVoided = true;
-    result.voidReason = voidReason;
-
-    db.xpHistory.unshift({
-      id: 'xp_void_' + Date.now(),
-      userId: result.userId,
-      userGamerTag: result.userGamerTag,
-      game: result.game,
-      result: `VOIDED: ${voidReason}`,
-      amount: -result.xpAwarded,
-      performedBy: admin.email,
-      createdAt: new Date().toISOString()
-    });
-
-    logAudit('RESULT_VOID', admin.email, `Voided game result ${resultId} for ${result.userGamerTag}. Reason: ${voidReason}`, req);
-
-    saveDb();
-
-    let safeStudent = undefined;
-    if (student) {
-      const { passwordHash, ...s } = student;
-      safeStudent = s;
-    }
-
-    res.json({ success: true, result, user: safeStudent });
   });
 
-  // XP HISTORY (Full Log)
-  app.get('/api/xp/history', (req, res) => {
-    res.json({ xpHistory: db.xpHistory });
+  // XP HISTORY (Full Log from Firestore)
+  app.get('/api/xp/history', async (req, res) => {
+    try {
+      const snap = await getDocs(collection(firestoreDb, 'xpHistory'));
+      const history: XpHistoryEntry[] = [];
+      snap.forEach((d) => history.push(d.data() as XpHistoryEntry));
+      history.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      res.json({ xpHistory: history });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch XP history' });
+    }
   });
 
   // AUDIT LOGS (Admin)
   app.get('/api/admin/audit-logs', async (req, res) => {
-    const admin = await getAdminUser(req);
-    if (!admin) {
-      return res.status(403).json({ error: '403 / Access Denied: Admin authorization required' });
+    try {
+      const admin = await getAdminUser(req);
+      if (!admin) {
+        return res.status(403).json({ error: '403 / Access Denied: Admin authorization required' });
+      }
+      const snap = await getDocs(collection(firestoreDb, 'auditLogs'));
+      const logs: AuditLogEntry[] = [];
+      snap.forEach((d) => logs.push(d.data() as AuditLogEntry));
+      logs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      res.json({ auditLogs: logs });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch audit logs' });
     }
-    res.json({ auditLogs: db.auditLogs });
   });
 
-  // ANALYTICS (Admin)
+  // TOURNAMENT ANALYTICS (Admin)
   app.get('/api/admin/analytics', async (req, res) => {
-    const students = db.users.filter((u) => u.role === 'student');
-    const validResults = db.gameResults.filter((r) => !r.isVoided);
+    try {
+      const students = await getAllStudentsFromFirestore();
+      const resultsSnap = await getDocs(collection(firestoreDb, 'gameResults'));
+      const validResults: GameResult[] = [];
+      resultsSnap.forEach((d) => {
+        const r = d.data() as GameResult;
+        if (!r.isVoided) validResults.push(r);
+      });
 
-    const totalParticipants = students.length;
-    const totalGamesPlayed = validResults.length;
-    const totalXpAwarded = validResults.reduce((acc, r) => acc + r.xpAwarded, 0);
+      const totalParticipants = students.length;
+      const totalGamesPlayed = validResults.length;
+      const totalXpAwarded = validResults.reduce((acc, r) => acc + (r.xpAwarded || 0), 0);
 
-    const gameCounts: Record<string, number> = {};
-    validResults.forEach((r) => {
-      gameCounts[r.game] = (gameCounts[r.game] || 0) + 1;
-    });
+      const gameCounts: Record<string, number> = {};
+      validResults.forEach((r) => {
+        gameCounts[r.game] = (gameCounts[r.game] || 0) + 1;
+      });
 
-    let mostPlayedGame = 'None';
-    let maxCount = 0;
-    Object.entries(gameCounts).forEach(([game, count]) => {
-      if (count > maxCount) {
-        maxCount = count;
-        mostPlayedGame = game;
-      }
-    });
+      let mostPlayedGame = 'None';
+      let maxCount = 0;
+      Object.entries(gameCounts).forEach(([game, count]) => {
+        if (count > maxCount) {
+          maxCount = count;
+          mostPlayedGame = game;
+        }
+      });
 
-    const sortedStudents = [...students].sort((a, b) => b.xp - a.xp);
-    const currentLeader = sortedStudents.length > 0 ? sortedStudents[0].fullName + ' (' + sortedStudents[0].gamerTag + ')' : 'None';
+      const sortedStudents = [...students].sort((a, b) => (b.xp || 0) - (a.xp || 0));
+      const currentLeader =
+        sortedStudents.length > 0
+          ? sortedStudents[0].fullName + ' (' + sortedStudents[0].gamerTag + ')'
+          : 'None';
 
-    const totalWins = students.reduce((acc, s) => acc + s.wins, 0);
-    const averageXp = totalParticipants > 0 ? Math.round(totalXpAwarded / totalParticipants) : 0;
+      const totalWins = students.reduce((acc, s) => acc + (s.wins || 0), 0);
+      const averageXp = totalParticipants > 0 ? Math.round(totalXpAwarded / totalParticipants) : 0;
 
-    res.json({
-      analytics: {
-        totalParticipants,
-        totalGamesPlayed,
-        totalXpAwarded,
-        mostPlayedGame,
-        currentLeader,
-        totalWins,
-        averageXp
-      }
-    });
+      res.json({
+        analytics: {
+          totalParticipants,
+          totalGamesPlayed,
+          totalXpAwarded,
+          mostPlayedGame,
+          currentLeader,
+          totalWins,
+          averageXp
+        }
+      });
+    } catch (err) {
+      console.error('Analytics error in Cloud Firestore:', err);
+      res.status(500).json({ error: 'Failed to calculate analytics' });
+    }
   });
 
   // VITE DEVELOPMENT OR PRODUCTION SERVING
@@ -989,10 +981,9 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  app.listen(PORT, () => {
     console.log(`🎮 Gaming Arena College Leaderboard Server running on http://localhost:${PORT}`);
   });
 }
 
 startServer();
-

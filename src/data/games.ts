@@ -1,4 +1,4 @@
-import { GameInfo } from '../types';
+import { GameInfo, RankTier } from '../types';
 
 export const EVENT_GAMES: GameInfo[] = [
   {
@@ -27,7 +27,7 @@ export const EVENT_GAMES: GameInfo[] = [
     ],
     xpRule: 'WIN: +25 XP | LOSS: 0 XP',
     winXpText: '+25 XP for Win',
-    banner: 'https://images.unsplash.com/photo-1611195974226-a6a9be9dd763?w=800&auto=format&fit=crop&q=80'
+    banner: 'https://images.pexels.com/photos/12612258/pexels-photo-12612258.jpeg'
   },
   {
     id: 'game_drawasourous',
@@ -98,17 +98,26 @@ export const EVENT_GAMES: GameInfo[] = [
     xpRule: 'CORRECT WITHIN TIME: +10 XP | WRONG/TIMEOUT: 0 XP',
     winXpText: '+10 XP for Correct PIN',
     banner: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=800&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'game_freefire_bgmi',
+    name: 'Free Fire / BGMI',
+    category: 'Battle Royale & Esports',
+    description: 'High-octane mobile battle royale survival tournament testing tactical gunplay, team positioning, and reflexes.',
+    rules: [
+      'Squad or Solo tournament brackets with official tournament rules.',
+      'Last player or team standing claims the Chicken Dinner / Booyah.',
+      'Official referees log match rankings and points.'
+    ],
+    xpRule: 'WIN: +60 XP | LOSS: 0 XP',
+    winXpText: '+60 XP for Win',
+    banner: 'https://sajidztech.com/wp-content/uploads/2024/09/4260bc90-ab40-40df-9bea-12eb487cecb9_PUBG-Mobile-vs-Free-Fire.jpeg'
   }
 ];
 
-export function calculateRankTier(xp: number): any {
-  if (xp >= 5000) return 'Radiance';
-  if (xp >= 3500) return 'Grandmaster';
-  if (xp >= 2500) return 'Master';
-  if (xp >= 1800) return 'Diamond';
-  if (xp >= 1200) return 'Platinum';
-  if (xp >= 800) return 'Gold';
-  if (xp >= 400) return 'Silver';
-  if (xp >= 150) return 'Bronze';
-  return 'Iron';
+export function calculateRankTier(xp: number): RankTier {
+  if (xp >= 150) return 'Legend';
+  if (xp >= 79) return 'Nova';
+  if (xp >= 39) return 'Blaze';
+  return 'Spark';
 }

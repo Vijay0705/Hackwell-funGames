@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { User, GameResult } from '../types';
+import { calculateRankTier } from '../data/games';
 import { Trophy, Zap, Gamepad2, Award, CheckCircle, XCircle, ArrowRight, UserCheck } from 'lucide-react';
 
 interface StudentHomeProps {
   currentUser: User | null;
+  activeTab?: string;
   onOpenStudentAuth: () => void;
   onNavigateTab: (tab: string) => void;
 }
 
 export const StudentHome: React.FC<StudentHomeProps> = ({
   currentUser,
+  activeTab = 'student-home',
   onOpenStudentAuth,
   onNavigateTab
 }) => {
@@ -31,52 +34,102 @@ export const StudentHome: React.FC<StudentHomeProps> = ({
     }
   }, [currentUser]);
 
-  if (!currentUser) {
+  // If viewing the Home Tab, ALWAYS display the exact Home Hero & 8 Official Games layout from screenshot!
+  if (activeTab === 'student-home' || !currentUser) {
     return (
-      <div className="py-12 px-4 max-w-4xl mx-auto text-center space-y-8">
-        <div className="bg-[#FFF9E6] border-4 border-black p-8 shadow-[8px_8px_0_0_#000000] rotate-[-1deg] space-y-6">
-          <div className="w-16 h-16 bg-[#FFB703] border-4 border-black shadow-[4px_4px_0_0_#000000] mx-auto flex items-center justify-center">
-            <Trophy className="w-8 h-8 text-black stroke-[3]" />
+      <div className="py-8 px-4 max-w-4xl mx-auto space-y-6">
+        {/* Top Hero Card */}
+        <div className="bg-white border-4 border-black p-8 sm:p-12 shadow-[8px_8px_0_0_#000000] text-center">
+          {/* Trophy Icon Badge */}
+          <div className="w-14 h-14 sm:w-16 sm:h-16 bg-[#FFB703] border-4 border-black shadow-[4px_4px_0_0_#000000] mx-auto flex items-center justify-center mb-6">
+            <Trophy className="w-7 h-7 sm:w-8 sm:h-8 text-black stroke-[3]" />
           </div>
-          <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tight text-black italic">
+
+          {/* Heading */}
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-tight text-black italic leading-tight">
             WELCOME TO THE COLLEGE GAMING ARENA!
           </h1>
-          <p className="text-sm md:text-base font-bold text-black/80 max-w-2xl mx-auto leading-relaxed">
-            The official campus leaderboard and XP hub for Chess, UNO, Drawasourous, Among Us, Antakshiri, Dumb Charades, and Guess the PIN!
+
+          {/* Description */}
+          <p className="text-sm md:text-base font-bold text-black/85 max-w-2xl mx-auto leading-relaxed mt-4 mb-8">
+            The official campus leaderboard and XP hub for Chess, UNO, Drawasourous, Among Us, Antakshiri, Dumb Charades, Guess the PIN, and Free Fire / BGMI!
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
-              onClick={onOpenStudentAuth}
-              className="w-full sm:w-auto px-6 py-3.5 bg-[#D90429] hover:bg-[#b00320] text-white font-black text-sm uppercase tracking-wider border-4 border-black shadow-[4px_4px_0_0_#000000] transition-all cursor-pointer flex items-center justify-center gap-2"
+              onClick={currentUser ? () => onNavigateTab('student-score') : onOpenStudentAuth}
+              className="w-full sm:w-auto px-7 py-3.5 bg-[#D90429] hover:bg-[#b00320] text-white font-black text-sm uppercase tracking-wider border-4 border-black shadow-[4px_4px_0_0_#000000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[2px_2px_0_0_#000000] transition-all cursor-pointer flex items-center justify-center gap-2.5"
             >
               <UserCheck className="w-5 h-5 stroke-[2.5]" />
-              Sign In with Google Account
+              {currentUser ? `MY PROFILE (${currentUser.gamerTag})` : 'SIGN IN'}
             </button>
             <button
               onClick={() => onNavigateTab('leaderboard')}
-              className="w-full sm:w-auto px-6 py-3.5 bg-[#FFB703] hover:bg-[#e0a100] text-black font-black text-sm uppercase tracking-wider border-4 border-black shadow-[4px_4px_0_0_#000000] transition-all cursor-pointer flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-7 py-3.5 bg-[#FFB703] hover:bg-[#e0a100] text-black font-black text-sm uppercase tracking-wider border-4 border-black shadow-[4px_4px_0_0_#000000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[2px_2px_0_0_#000000] transition-all cursor-pointer flex items-center justify-center gap-2"
             >
-              View Live Leaderboard
-              <ArrowRight className="w-5 h-5 stroke-[2.5]" />
+              VIEW LIVE LEADERBOARD
+              <ArrowRight className="w-5 h-5 stroke-[3]" />
             </button>
           </div>
         </div>
 
-        {/* Seven Official Event Games Banner */}
-        <div className="bg-white border-4 border-black p-6 shadow-[6px_6px_0_0_#000000] text-left">
-          <h3 className="font-black text-lg uppercase italic border-b-4 border-black pb-2 mb-4 text-[#D90429]">
-            🎮 7 Official Event Games
+        {/* Bottom 8 Official Event Games Card */}
+        <div className="bg-white border-4 border-black p-6 sm:p-7 shadow-[6px_6px_0_0_#000000] text-left">
+          <h3 className="font-black text-base sm:text-lg uppercase italic border-b-4 border-black pb-3 mb-4 text-[#D90429] flex items-center gap-2">
+            <span>🎮</span> 8 OFFICIAL EVENT GAMES
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-black uppercase">
-            <div className="p-3 bg-[#FFF9E6] border-2 border-black">♟️ 1. Chess (+50 XP)</div>
-            <div className="p-3 bg-[#FFF9E6] border-2 border-black">🃏 2. UNO (+25 XP)</div>
-            <div className="p-3 bg-[#FFF9E6] border-2 border-black">✏️ 3. Drawasourous (+10 XP)</div>
-            <div className="p-3 bg-[#FFF9E6] border-2 border-black">🚀 4. Among Us (+15 XP)</div>
-            <div className="p-3 bg-[#FFF9E6] border-2 border-black">🎵 5. Antakshiri (+10 XP)</div>
-            <div className="p-3 bg-[#FFF9E6] border-2 border-black">🎭 6. Dumb Charades (+5 XP/movie)</div>
-            <div className="p-3 bg-[#FFF9E6] border-2 border-black col-span-2 sm:col-span-2">🔢 7. Guess the PIN (+10 XP)</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs font-black uppercase text-black">
+            <div className="p-3 bg-white border-2 border-black flex items-center gap-2 hover:bg-[#FFF9E6] transition-colors">
+              <span>♟️</span>
+              <span>1. CHESS (+50 XP)</span>
+            </div>
+            <div className="p-3 bg-white border-2 border-black flex items-center gap-2 hover:bg-[#FFF9E6] transition-colors">
+              <span>🃏</span>
+              <span>2. UNO (+25 XP)</span>
+            </div>
+            <div className="p-3 bg-white border-2 border-black flex items-center gap-2 hover:bg-[#FFF9E6] transition-colors">
+              <span>✏️</span>
+              <span>3. DRAWASOUROUS (+10 XP)</span>
+            </div>
+            <div className="p-3 bg-white border-2 border-black flex items-center gap-2 hover:bg-[#FFF9E6] transition-colors">
+              <span>👾</span>
+              <span>4. AMONG US (+15 XP)</span>
+            </div>
+            <div className="p-3 bg-white border-2 border-black flex items-center gap-2 hover:bg-[#FFF9E6] transition-colors">
+              <span>🎵</span>
+              <span>5. ANTAKSHIRI (+10 XP)</span>
+            </div>
+            <div className="p-3 bg-white border-2 border-black flex items-center gap-2 hover:bg-[#FFF9E6] transition-colors">
+              <span>🎭</span>
+              <span>6. DUMB CHARADES (+5 XP/MOVIE)</span>
+            </div>
+            <div className="p-3 bg-white border-2 border-black flex items-center gap-2 hover:bg-[#FFF9E6] transition-colors">
+              <span>🔢</span>
+              <span>7. GUESS THE PIN (+10 XP)</span>
+            </div>
+            <div className="p-3 bg-white border-2 border-black flex items-center gap-2 hover:bg-[#FFF9E6] transition-colors">
+              <span>🎯</span>
+              <span>8. FREE FIRE / BGMI (+60 XP)</span>
+            </div>
           </div>
         </div>
+
+        {/* If logged in on home tab, quick shortcut to student dashboard */}
+        {currentUser && (
+          <div className="bg-[#FFB703] border-4 border-black p-4 shadow-[4px_4px_0_0_#000] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-black uppercase">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 bg-black text-white text-[10px]">LOGGED IN</span>
+              <span>{currentUser.fullName} ({currentUser.gamerTag}) • {currentUser.xp} XP</span>
+            </div>
+            <button
+              onClick={() => onNavigateTab('student-score')}
+              className="px-4 py-1.5 bg-white hover:bg-slate-100 text-black border-2 border-black shadow-[2px_2px_0_0_#000] cursor-pointer"
+            >
+              View My Score & Match Results →
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -138,7 +191,7 @@ export const StudentHome: React.FC<StudentHomeProps> = ({
             <span className="text-xs font-black uppercase tracking-wider">CURRENT RANK</span>
             <Award className="w-5 h-5 text-[#D90429] stroke-[3]" />
           </div>
-          <p className="text-2xl font-black text-[#D90429] uppercase italic">{currentUser.rankTier}</p>
+          <p className="text-2xl font-black text-[#D90429] uppercase italic">{calculateRankTier(currentUser.xp)}</p>
           <p className="text-[10px] font-bold text-slate-600 uppercase">Based on total XP</p>
         </div>
 
@@ -222,6 +275,55 @@ export const StudentHome: React.FC<StudentHomeProps> = ({
             </table>
           </div>
         )}
+      </div>
+
+      {/* 8 Official Event Games Reference */}
+      <div className="bg-white border-4 border-black p-6 shadow-[6px_6px_0_0_#000000] text-left">
+        <div className="flex items-center justify-between border-b-4 border-black pb-3 mb-4">
+          <h3 className="font-black text-base sm:text-lg uppercase italic text-[#D90429] flex items-center gap-2">
+            <span>🎮</span> 8 OFFICIAL EVENT GAMES & XP
+          </h3>
+          <button
+            onClick={() => onNavigateTab('games')}
+            className="text-xs font-black uppercase underline hover:text-[#D90429] cursor-pointer"
+          >
+            View Full Game Rules →
+          </button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs font-black uppercase text-black">
+          <div className="p-3 bg-white border-2 border-black flex items-center gap-2 hover:bg-[#FFF9E6] transition-colors">
+            <span>♟️</span>
+            <span>1. CHESS (+50 XP)</span>
+          </div>
+          <div className="p-3 bg-white border-2 border-black flex items-center gap-2 hover:bg-[#FFF9E6] transition-colors">
+            <span>🃏</span>
+            <span>2. UNO (+25 XP)</span>
+          </div>
+          <div className="p-3 bg-white border-2 border-black flex items-center gap-2 hover:bg-[#FFF9E6] transition-colors">
+            <span>✏️</span>
+            <span>3. DRAWASOUROUS (+10 XP)</span>
+          </div>
+          <div className="p-3 bg-white border-2 border-black flex items-center gap-2 hover:bg-[#FFF9E6] transition-colors">
+            <span>👾</span>
+            <span>4. AMONG US (+15 XP)</span>
+          </div>
+          <div className="p-3 bg-white border-2 border-black flex items-center gap-2 hover:bg-[#FFF9E6] transition-colors">
+            <span>🎵</span>
+            <span>5. ANTAKSHIRI (+10 XP)</span>
+          </div>
+          <div className="p-3 bg-white border-2 border-black flex items-center gap-2 hover:bg-[#FFF9E6] transition-colors">
+            <span>🎭</span>
+            <span>6. DUMB CHARADES (+5 XP/MOVIE)</span>
+          </div>
+          <div className="p-3 bg-white border-2 border-black flex items-center gap-2 hover:bg-[#FFF9E6] transition-colors">
+            <span>🔢</span>
+            <span>7. GUESS THE PIN (+10 XP)</span>
+          </div>
+          <div className="p-3 bg-white border-2 border-black flex items-center gap-2 hover:bg-[#FFF9E6] transition-colors">
+            <span>🎯</span>
+            <span>8. FREE FIRE / BGMI (+60 XP)</span>
+          </div>
+        </div>
       </div>
     </div>
   );

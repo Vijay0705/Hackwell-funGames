@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LeaderboardUser } from '../types';
+import { calculateRankTier } from '../data/games';
 import { Trophy, RefreshCw, Search, Zap, Crown, Award, Medal, CheckCircle2 } from 'lucide-react';
 
 interface LeaderboardViewProps {
@@ -68,7 +69,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onSelectUser }
             COLLEGE ARENA XP LEADERBOARD
           </h1>
           <p className="text-xs font-bold uppercase text-black/80 mt-1">
-            Official cumulative rankings for all 7 event games. Refreshes automatically every 60 seconds.
+            Official cumulative rankings for all 8 event games. Refreshes automatically every 60 seconds.
           </p>
         </div>
 
@@ -108,7 +109,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onSelectUser }
                 className="bg-[#FFB703] border-4 border-black p-5 shadow-[6px_6px_0_0_#000000] cursor-pointer hover:scale-[1.01] transition-transform relative overflow-hidden"
               >
                 <div className="absolute top-2 right-2 bg-black text-[#FFB703] px-2.5 py-0.5 font-black text-[10px] uppercase border-2 border-black">
-                  👑 RANK #1 CHAMPION
+                  👑 RANK #1 FINAL BOSS
                 </div>
                 <div className="flex items-center gap-3 mt-2">
                   <img
@@ -139,7 +140,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onSelectUser }
                 className="bg-[#E0E0E0] border-4 border-black p-5 shadow-[6px_6px_0_0_#000000] cursor-pointer hover:scale-[1.01] transition-transform relative overflow-hidden"
               >
                 <div className="absolute top-2 right-2 bg-black text-white px-2.5 py-0.5 font-black text-[10px] uppercase border-2 border-black">
-                  🥈 RANK #2 RUNNER-UP
+                  🥈 RANK #2 BOSS SLAYER
                 </div>
                 <div className="flex items-center gap-3 mt-2">
                   <img
@@ -170,7 +171,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onSelectUser }
                 className="bg-[#D4A373] border-4 border-black p-5 shadow-[6px_6px_0_0_#000000] cursor-pointer hover:scale-[1.01] transition-transform relative overflow-hidden"
               >
                 <div className="absolute top-2 right-2 bg-black text-[#FFB703] px-2.5 py-0.5 font-black text-[10px] uppercase border-2 border-black">
-                  🥉 RANK #3 THIRD PLACE
+                  🥉 RANK #3 RISING LEGEND
                 </div>
                 <div className="flex items-center gap-3 mt-2">
                   <img
@@ -290,7 +291,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ onSelectUser }
                       </td>
                       <td className="p-4 border-r-2 border-black font-black">
                         <span className="px-2 py-0.5 bg-[#FFF9E6] border border-black text-[10px] uppercase text-black">
-                          {user.rankTier}
+                          {calculateRankTier(user.xp)}
                         </span>
                       </td>
                       <td className="p-4 border-r-2 border-black font-mono font-black text-base text-[#D90429]">

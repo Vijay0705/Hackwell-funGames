@@ -122,7 +122,7 @@ export const AdminGameResults: React.FC<AdminGameResultsProps> = ({ showToast })
             onChange={(e) => setGameFilter(e.target.value)}
             className="p-2 bg-[#FFF9E6] border-2 border-black font-black text-xs uppercase outline-none cursor-pointer"
           >
-            <option value="ALL">All 7 Games</option>
+            <option value="ALL">All 8 Games</option>
             <option value="Chess">Chess</option>
             <option value="UNO">UNO</option>
             <option value="Drawasourous / Scribble.io">Drawasourous</option>
@@ -130,6 +130,7 @@ export const AdminGameResults: React.FC<AdminGameResultsProps> = ({ showToast })
             <option value="Antakshiri">Antakshiri</option>
             <option value="Dumb Charades">Dumb Charades</option>
             <option value="Guess the PIN">Guess the PIN</option>
+            <option value="Free Fire / BGMI">BGMI / Free Fire</option>
           </select>
         </div>
       </div>

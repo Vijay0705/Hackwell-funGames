@@ -14,11 +14,11 @@ export const GamesView: React.FC = () => {
           </h1>
         </div>
         <p className="text-xs sm:text-sm font-bold uppercase text-black/90 max-w-3xl">
-          The College Gaming Arena features 7 official games. XP points are awarded strictly according to official game results logged by event referees and admins.
+          The College Gaming Arena features 8 official games. XP points are awarded strictly according to official game results logged by event referees and admins.
         </p>
       </div>
 
-      {/* Grid of the 7 Official Games */}
+      {/* Grid of the 8 Official Games */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {EVENT_GAMES.map((game, index) => (
           <div

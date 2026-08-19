@@ -1,13 +1,8 @@
 export type RankTier = 
-  | 'Iron' 
-  | 'Bronze' 
-  | 'Silver' 
-  | 'Gold' 
-  | 'Platinum' 
-  | 'Diamond' 
-  | 'Master' 
-  | 'Grandmaster' 
-  | 'Radiance';
+  | 'Spark' 
+  | 'Blaze' 
+  | 'Nova' 
+  | 'Legend';
 
 export type UserRole = 'student' | 'participant' | 'admin' | 'ADMIN';
 
@@ -18,7 +13,8 @@ export type EventGame =
   | 'Among Us' 
   | 'Antakshiri' 
   | 'Dumb Charades' 
-  | 'Guess the PIN';
+  | 'Guess the PIN'
+  | 'Free Fire / BGMI';
 
 export interface User {
   id: string;

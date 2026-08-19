@@ -15,7 +15,8 @@ const EVENT_GAMES_LIST: EventGame[] = [
   'Among Us',
   'Antakshiri',
   'Dumb Charades',
-  'Guess the PIN'
+  'Guess the PIN',
+  'Free Fire / BGMI'
 ];
 
 export const AdminUpdatePoints: React.FC<AdminUpdatePointsProps> = ({
@@ -49,6 +50,8 @@ export const AdminUpdatePoints: React.FC<AdminUpdatePointsProps> = ({
         return Math.max(0, moviesWon) * 5;
       case 'Guess the PIN':
         return result === 'CORRECT WITHIN TIME' ? 10 : 0;
+      case 'Free Fire / BGMI':
+        return result === 'WIN' ? 60 : 0;
       default:
         return 0;
     }

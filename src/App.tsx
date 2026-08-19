@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, LeaderboardUser, GameResult } from './types';
+import { calculateRankTier } from './data/games';
 import { Navbar } from './components/Navbar';
 import { StudentHome } from './components/StudentHome';
 import { GamesView } from './components/GamesView';
@@ -248,7 +249,7 @@ export default function App() {
   }, [loading, isAdminRoute, isAdminUser, currentPath]);
 
   return (
-    <div className="min-h-screen bg-[#FFF9E6] text-black font-sans selection:bg-[#FFB703] selection:text-black border-x-0 md:border-x-[8px] border-black">
+    <div className="min-h-screen bg-transparent text-black font-sans selection:bg-[#FFB703] selection:text-black border-x-0 md:border-x-[8px] border-black">
       {/* Toast Notification Banner */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom duration-300">
@@ -443,6 +444,7 @@ export default function App() {
             {activeTab === 'student-home' && (
               <StudentHome
                 currentUser={currentUser}
+                activeTab={activeTab}
                 onOpenStudentAuth={() => setIsStudentAuthOpen(true)}
                 onNavigateTab={(tab) => setActiveTab(tab as any)}
               />
@@ -457,6 +459,7 @@ export default function App() {
             {activeTab === 'student-score' && (
               <StudentHome
                 currentUser={currentUser}
+                activeTab={activeTab}
                 onOpenStudentAuth={() => setIsStudentAuthOpen(true)}
                 onNavigateTab={(tab) => setActiveTab(tab as any)}
               />
@@ -465,6 +468,7 @@ export default function App() {
             {activeTab === 'student-history' && (
               <StudentHome
                 currentUser={currentUser}
+                activeTab={activeTab}
                 onOpenStudentAuth={() => setIsStudentAuthOpen(true)}
                 onNavigateTab={(tab) => setActiveTab(tab as any)}
               />
@@ -484,6 +488,9 @@ export default function App() {
           setCurrentUser(user);
           showToast(`Welcome back, ${user.fullName}! 🎉`);
           setIsStudentAuthOpen(false);
+          if (user.role === 'admin' || user.role === 'ADMIN') {
+            navigate('/admin/dashboard');
+          }
           fetchData();
         }}
         existingStudents={students}
@@ -539,7 +546,7 @@ export default function App() {
               </div>
               <div className="p-3 bg-[#FFF9E6] border-2 border-black">
                 <span className="text-[10px] text-slate-500 block">RANK TIER</span>
-                <span className="text-xl text-black">{inspectedUser.rankTier}</span>
+                <span className="text-xl text-black">{calculateRankTier(inspectedUser.xp)}</span>
               </div>
               <div className="p-3 bg-[#FFF9E6] border-2 border-black">
                 <span className="text-[10px] text-slate-500 block">WINS / LOSSES</span>
