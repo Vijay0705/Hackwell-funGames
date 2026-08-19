@@ -2,7 +2,9 @@ export type RankTier =
   | 'Spark' 
   | 'Blaze' 
   | 'Nova' 
-  | 'Legend';
+  | 'Legend'
+  | 'Grand master';
+
 
 export type UserRole = 'student' | 'participant' | 'admin' | 'ADMIN';
 

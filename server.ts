@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { initializeApp, getApps } from 'firebase/app';
 import {
   getFirestore,
+  initializeFirestore,
   setLogLevel,
   doc,
   getDoc,
@@ -87,7 +88,9 @@ const firebaseConfig = {
 };
 
 const appInstance = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const firestoreDb = getFirestore(appInstance);
+const firestoreDb = initializeFirestore(appInstance, {
+  ignoreUndefinedProperties: true
+});
 
 // --- FIRESTORE HELPER UTILITIES ---
 
@@ -881,12 +884,15 @@ async function startServer() {
         userFullName: student.fullName,
         game: game as EventGame,
         result: result,
-        moviesWon: game === 'Dumb Charades' ? Math.max(0, parseInt(String(moviesWon || 0), 10) || 0) : undefined,
         xpAwarded,
         isVoided: false,
         recordedByAdmin: admin.email,
         createdAt: new Date().toISOString()
       };
+
+      if (game === 'Dumb Charades') {
+        newResult.moviesWon = Math.max(0, parseInt(String(moviesWon || 0), 10) || 0);
+      }
 
       const newXpEntry: XpHistoryEntry = {
         id: 'xp_' + Date.now(),

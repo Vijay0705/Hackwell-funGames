@@ -116,8 +116,9 @@ export const EVENT_GAMES: GameInfo[] = [
 ];
 
 export function calculateRankTier(xp: number): RankTier {
+  if (xp >= 200) return 'Grand master';
   if (xp >= 150) return 'Legend';
-  if (xp >= 79) return 'Nova';
-  if (xp >= 39) return 'Blaze';
+  if (xp >= 100) return 'Nova';
+  if (xp >= 50) return 'Blaze';
   return 'Spark';
 }

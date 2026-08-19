@@ -319,7 +319,8 @@
         "Spark",
         "Blaze",
         "Nova",
-        "Legend"
+        "Legend",
+        "Grand master"
       ],
       "description": "Competitive tier ranks based on total player XP"
     },
@@ -357,9 +358,10 @@
   },
   "rankTierThresholds": [
     { "tier": "Spark", "minXp": 0 },
-    { "tier": "Blaze", "minXp": 39 },
-    { "tier": "Nova", "minXp": 79 },
-    { "tier": "Legend", "minXp": 150 }
+    { "tier": "Blaze", "minXp": 50 },
+    { "tier": "Nova", "minXp": 100 },
+    { "tier": "Legend", "minXp": 150 },
+    { "tier": "Grand master", "minXp": 200 }
   ],
   "gameXpRules": [
     { "game": "Chess", "winXp": 50, "lossXp": 0, "rule": "WIN: +50 XP" },
