@@ -393,12 +393,10 @@ async function ensureSchemaAndInitialData() {
 
 // --- SERVER INITIALIZATION ---
 
-async function startServer() {
-  console.log(`⚡ Initializing 100% Cloud Firestore Backend (Project: ${firebaseConfig.projectId})...`);
-  await ensureSchemaAndInitialData();
+console.log(`⚡ Initializing 100% Cloud Firestore Backend (Project: ${firebaseConfig.projectId})...`);
 
-  const app = express();
-  app.use(express.json({ limit: '10mb' }));
+const app = express();
+app.use(express.json({ limit: '10mb' }));
 
   // --- API ROUTES ---
 
@@ -1156,24 +1154,33 @@ async function startServer() {
     }
   });
 
-  // VITE DEVELOPMENT OR PRODUCTION SERVING
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa'
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+  // Export Express app for Vercel Serverless Functions
+  export default app;
+
+  // Startup configuration for local environments
+  if (!process.env.VERCEL) {
+    const startLocalServer = async () => {
+      await ensureSchemaAndInitialData();
+      if (process.env.NODE_ENV !== 'production') {
+        const vite = await createViteServer({
+          server: { middlewareMode: true },
+          appType: 'spa'
+        });
+        app.use(vite.middlewares);
+      } else {
+        const distPath = path.join(process.cwd(), 'dist');
+        app.use(express.static(distPath));
+        app.get('*', (req, res) => {
+          res.sendFile(path.join(distPath, 'index.html'));
+        });
+      }
+
+      app.listen(PORT, () => {
+        console.log(`🎮 Gaming Arena College Leaderboard Server running on http://localhost:${PORT}`);
+      });
+    };
+
+    startLocalServer().catch((err) => {
+      console.error('Failed to start local server:', err);
     });
   }
-
-  app.listen(PORT, () => {
-    console.log(`🎮 Gaming Arena College Leaderboard Server running on http://localhost:${PORT}`);
-  });
-}
-
-startServer();
