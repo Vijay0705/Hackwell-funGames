@@ -22,11 +22,15 @@ export const auth = getAuth(app);
 
 export let analytics = null;
 if (typeof window !== "undefined") {
-  isSupported().then((supported) => {
-    if (supported) {
-      analytics = getAnalytics(app);
-    }
-  });
+  isSupported()
+    .then((supported) => {
+      if (supported) {
+        analytics = getAnalytics(app);
+      }
+    })
+    .catch(() => {
+      // Analytics is optional and might not be supported in all environments
+    });
 }
 
 export default app;

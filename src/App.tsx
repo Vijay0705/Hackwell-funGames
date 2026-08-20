@@ -59,29 +59,29 @@ export default function App() {
   const fetchData = async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
-
     try {
       setLoading(true);
-
       const token = localStorage.getItem('hero_rank_token');
-      const hasToken = Boolean(token && token !== 'null' && token !== 'undefined' && token.trim() !== '');
+      const hasValidToken = Boolean(token && token !== 'null' && token !== 'undefined' && token.trim() !== '');
 
-      const mePromise = hasToken
-        ? fetch('/api/auth/me', {
-            headers: {
-              Authorization: `Bearer ${token}`
-            }
-          })
-        : Promise.resolve(null);
-
-      const [usersRes, meRes] = await Promise.all([
+      const promises: [Promise<Response>, Promise<Response | null>] = [
         fetch('/api/users'),
-        mePromise
-      ]);
+        hasValidToken
+          ? fetch('/api/auth/me', {
+              headers: {
+                Authorization: `Bearer ${token}`
+              }
+            })
+          : Promise.resolve(null)
+      ];
 
-      const usersData = await usersRes.json();
-      if (usersData.users) {
-        setStudents(usersData.users);
+      const [usersRes, meRes] = await Promise.all(promises);
+
+      if (usersRes.ok) {
+        const usersData = await usersRes.json();
+        if (usersData.users) {
+          setStudents(usersData.users);
+        }
       }
 
       if (meRes && meRes.ok) {
@@ -92,6 +92,9 @@ export default function App() {
           setCurrentUser(null);
         }
       } else {
+        if (hasValidToken && meRes && meRes.status === 401) {
+          localStorage.removeItem('hero_rank_token');
+        }
         setCurrentUser(null);
       }
     } catch (err) {

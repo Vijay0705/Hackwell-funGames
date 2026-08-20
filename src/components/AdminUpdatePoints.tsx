@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, EventGame } from '../types';
 import { Zap, PlusCircle, CheckCircle2, AlertCircle, ShieldAlert } from 'lucide-react';
 
@@ -30,6 +30,12 @@ export const AdminUpdatePoints: React.FC<AdminUpdatePointsProps> = ({
   const [moviesWon, setMoviesWon] = useState<number>(1);
   const [isConfirming, setIsConfirming] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    if ((!selectedStudentId || !students.some((s) => s.id === selectedStudentId)) && students.length > 0) {
+      setSelectedStudentId(students[0].id);
+    }
+  }, [students, selectedStudentId]);
 
   const selectedStudent = students.find((s) => s.id === selectedStudentId) || students[0];
 
