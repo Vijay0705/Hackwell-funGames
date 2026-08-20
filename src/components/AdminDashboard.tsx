@@ -220,30 +220,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <p className="text-3xl font-black text-[#D90429] font-mono">{totalXpAwarded.toLocaleString()}</p>
               <p className="text-[10px] font-bold text-slate-600 uppercase mt-1">Distributed Event Points</p>
             </div>
-
-            <div className="bg-[#FFB703] border-4 border-black p-5 shadow-[5px_5px_0_0_#000]">
-              <span className="text-[10px] font-black uppercase text-black block">👑 CURRENT #1 CHAMPION</span>
-              <p className="text-xl font-black text-black uppercase italic truncate mt-1">
-                {top1 ? top1.fullName : 'None'}
-              </p>
-              <p className="text-[10px] font-black text-black font-mono mt-1">{top1 ? `${top1.xp} XP` : '0 XP'}</p>
-            </div>
-
-            <div className="bg-[#E0E0E0] border-4 border-black p-5 shadow-[5px_5px_0_0_#000]">
-              <span className="text-[10px] font-black uppercase text-black block">🥈 CURRENT #2 RUNNER-UP</span>
-              <p className="text-xl font-black text-black uppercase italic truncate mt-1">
-                {top2 ? top2.fullName : 'None'}
-              </p>
-              <p className="text-[10px] font-black text-black font-mono mt-1">{top2 ? `${top2.xp} XP` : '0 XP'}</p>
-            </div>
-
-            <div className="bg-[#D4A373] border-4 border-black p-5 shadow-[5px_5px_0_0_#000]">
-              <span className="text-[10px] font-black uppercase text-black block">🥉 CURRENT #3 THIRD PLACE</span>
-              <p className="text-xl font-black text-black uppercase italic truncate mt-1">
-                {top3 ? top3.fullName : 'None'}
-              </p>
-              <p className="text-[10px] font-black text-black font-mono mt-1">{top3 ? `${top3.xp} XP` : '0 XP'}</p>
-            </div>
           </div>
 
           {/* QUICK ACTIONS BAR */}

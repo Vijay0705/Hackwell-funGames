@@ -1,11 +1,7 @@
 import { User, GameResult, XpHistoryEntry, AuditLogEntry, RankTier } from '../types.js';
+import { calculateRankTier } from '../data/games.js';
 
-export function calculateRankTier(xp: number): RankTier {
-  if (xp >= 150) return 'Legend';
-  if (xp >= 79) return 'Nova';
-  if (xp >= 39) return 'Blaze';
-  return 'Spark';
-}
+export { calculateRankTier };
 
 export const INITIAL_USERS: User[] = [
   {
