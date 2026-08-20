@@ -309,11 +309,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         />
       )}
 
-      {adminTab === 'game-results' && <AdminGameResults showToast={showToast} />}
+      {adminTab === 'game-results' && (
+        <AdminGameResults showToast={showToast} onRefreshData={onRefreshData} />
+      )}
 
       {adminTab === 'xp-history' && <AdminXpHistory />}
 
-      {adminTab === 'analytics' && <AdminAnalytics />}
+      {adminTab === 'analytics' && (
+        <AdminAnalytics students={students} onRefreshData={onRefreshData} />
+      )}
 
       {adminTab === 'audit-log' && <AdminAuditLog />}
 

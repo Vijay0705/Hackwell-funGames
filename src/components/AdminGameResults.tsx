@@ -4,9 +4,10 @@ import { Search, Filter, Ban, AlertCircle, RefreshCw, CheckCircle2 } from 'lucid
 
 interface AdminGameResultsProps {
   showToast: (text: string, type?: 'success' | 'error') => void;
+  onRefreshData?: () => void;
 }
 
-export const AdminGameResults: React.FC<AdminGameResultsProps> = ({ showToast }) => {
+export const AdminGameResults: React.FC<AdminGameResultsProps> = ({ showToast, onRefreshData }) => {
   const [results, setResults] = useState<GameResult[]>([]);
   const [search, setSearch] = useState('');
   const [gameFilter, setGameFilter] = useState('ALL');
@@ -64,6 +65,7 @@ export const AdminGameResults: React.FC<AdminGameResultsProps> = ({ showToast })
       if (data.success) {
         showToast('Game result voided successfully! XP reversed in database.');
         fetchResults();
+        onRefreshData?.();
       } else {
         showToast(data.error || 'Failed to void result.', 'error');
       }
@@ -162,19 +164,30 @@ export const AdminGameResults: React.FC<AdminGameResultsProps> = ({ showToast })
                   <tr
                     key={item.id}
                     className={`hover:bg-[#FFF9E6] transition-colors ${
-                      item.isVoided ? 'bg-rose-50 text-slate-400 line-through' : ''
+                      item.isVoided ? 'bg-rose-50/70 text-slate-500' : ''
                     }`}
                   >
                     <td className="p-3 border-r-2 border-black">
-                      <p className="font-black text-sm uppercase text-black">{item.userFullName}</p>
+                      <p className={`font-black text-sm uppercase ${item.isVoided ? 'line-through text-slate-500' : 'text-black'}`}>
+                        {item.userFullName}
+                      </p>
                       <p className="text-[10px] font-black text-[#D90429] uppercase">@{item.userGamerTag}</p>
                     </td>
-                    <td className="p-3 border-r-2 border-black font-black uppercase">{item.game}</td>
-                    <td className="p-3 border-r-2 border-black uppercase font-mono">
+                    <td className={`p-3 border-r-2 border-black font-black uppercase ${item.isVoided ? 'line-through text-slate-400' : ''}`}>
+                      {item.game}
+                    </td>
+                    <td className={`p-3 border-r-2 border-black uppercase font-mono ${item.isVoided ? 'line-through text-slate-400' : ''}`}>
                       {item.game === 'Dumb Charades' && item.moviesWon ? `${item.moviesWon} Movies Won` : item.result}
                     </td>
-                    <td className="p-3 border-r-2 border-black font-mono font-black text-sm text-[#D90429]">
-                      +{item.xpAwarded} XP
+                    <td className="p-3 border-r-2 border-black font-mono font-black text-sm">
+                      {item.isVoided ? (
+                        <div className="space-y-0.5">
+                          <span className="line-through text-slate-400">+{item.xpAwarded} XP</span>
+                          <span className="text-[10px] text-rose-600 block font-bold">(0 XP Net)</span>
+                        </div>
+                      ) : (
+                        <span className="text-[#D90429]">+{item.xpAwarded} XP</span>
+                      )}
                     </td>
                     <td className="p-3 border-r-2 border-black font-mono text-slate-700">{item.recordedByAdmin}</td>
                     <td className="p-3 border-r-2 border-black font-mono text-slate-600">
@@ -182,7 +195,7 @@ export const AdminGameResults: React.FC<AdminGameResultsProps> = ({ showToast })
                     </td>
                     <td className="p-3 text-center">
                       {item.isVoided ? (
-                        <span className="px-2 py-0.5 bg-rose-200 text-rose-800 border border-black text-[10px] uppercase font-black">
+                        <span className="px-2 py-0.5 bg-rose-200 text-rose-800 border border-black text-[10px] uppercase font-black block">
                           VOIDED ({item.voidReason})
                         </span>
                       ) : (

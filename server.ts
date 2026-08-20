@@ -48,30 +48,53 @@ export function verifyPassword(password: string, combinedHash?: string): boolean
   }
 }
 
-// Fixed XP Calculation Rule
+// Fixed XP Calculation Rule with robust string normalization
 export function calculateXpForGame(game: string, result: string, moviesWon?: number): number {
-  switch (game) {
-    case 'Chess':
-      return result === 'WIN' ? 50 : 0;
-    case 'UNO':
-      return result === 'WIN' ? 25 : 0;
-    case 'Drawasourous / Scribble.io':
-      return result === 'WIN' ? 10 : 0;
-    case 'Among Us':
-      return result === 'WIN' ? 15 : 0;
-    case 'Antakshiri':
-      return result === 'WIN' ? 10 : 0;
-    case 'Dumb Charades': {
-      const count = Math.max(0, parseInt(String(moviesWon || 0), 10) || 0);
-      return count * 5;
-    }
-    case 'Guess the PIN':
-      return result === 'CORRECT WITHIN TIME' ? 10 : 0;
-    case 'Free Fire / BGMI':
-      return result === 'WIN' ? 60 : 0;
-    default:
-      return 0;
+  const normalizedGame = (game || '').trim().toLowerCase();
+  const normalizedResult = (result || '').trim().toUpperCase();
+
+  // Dumb Charades (+5 XP per movie won)
+  if (normalizedGame.includes('charade')) {
+    const count = Math.max(0, parseInt(String(moviesWon || 0), 10) || 0);
+    return count * 5;
   }
+
+  // Guess the PIN (+10 XP)
+  if (normalizedGame.includes('guess') || normalizedGame.includes('pin')) {
+    return (normalizedResult === 'CORRECT WITHIN TIME' || normalizedResult === 'WIN' || normalizedResult === 'CORRECT') ? 10 : 0;
+  }
+
+  // Free Fire / BGMI (+60 XP)
+  if (normalizedGame.includes('free fire') || normalizedGame.includes('bgmi') || normalizedGame.includes('pubg') || normalizedGame.includes('freefire')) {
+    return normalizedResult === 'WIN' ? 60 : 0;
+  }
+
+  // Chess (+50 XP)
+  if (normalizedGame.includes('chess')) {
+    return normalizedResult === 'WIN' ? 50 : 0;
+  }
+
+  // UNO (+25 XP)
+  if (normalizedGame.includes('uno')) {
+    return normalizedResult === 'WIN' ? 25 : 0;
+  }
+
+  // Drawasourous / Scribble.io (+10 XP)
+  if (normalizedGame.includes('draw') || normalizedGame.includes('scribble') || normalizedGame.includes('skribbl')) {
+    return normalizedResult === 'WIN' ? 10 : 0;
+  }
+
+  // Among Us (+15 XP)
+  if (normalizedGame.includes('among')) {
+    return normalizedResult === 'WIN' ? 15 : 0;
+  }
+
+  // Antakshiri (+10 XP)
+  if (normalizedGame.includes('antakshiri') || normalizedGame.includes('antakshari')) {
+    return normalizedResult === 'WIN' ? 10 : 0;
+  }
+
+  return 0;
 }
 
 // Cloud Firestore Database Initialization
@@ -940,20 +963,46 @@ async function startServer() {
     try {
       const students = await getAllStudentsFromFirestore();
       const resultsSnap = await getDocs(collection(firestoreDb, 'gameResults'));
+      const xpSnap = await getDocs(collection(firestoreDb, 'xpHistory'));
+
       const validResults: GameResult[] = [];
       resultsSnap.forEach((d) => {
         const r = d.data() as GameResult;
         if (!r.isVoided) validResults.push(r);
       });
 
+      const xpEntries: XpHistoryEntry[] = [];
+      xpSnap.forEach((d) => {
+        const x = d.data() as XpHistoryEntry;
+        if (x.amount > 0 && !x.result?.toLowerCase().includes('void')) {
+          xpEntries.push(x);
+        }
+      });
+
       const totalParticipants = students.length;
-      const totalGamesPlayed = validResults.length;
-      const totalXpAwarded = validResults.reduce((acc, r) => acc + (r.xpAwarded || 0), 0);
+      const gamesFromResults = validResults.length;
+      const gamesFromXp = xpEntries.length;
+      const gamesFromStudents = students.reduce((acc, s) => acc + (s.gamesPlayed || 0), 0);
+      const totalGamesPlayed = Math.max(gamesFromResults, gamesFromXp, gamesFromStudents);
+
+      const xpFromResults = validResults.reduce((acc, r) => acc + (r.xpAwarded || 0), 0);
+      const xpFromHistory = xpEntries.reduce((acc, x) => acc + (x.amount || 0), 0);
+      const xpFromStudents = students.reduce((acc, s) => acc + (s.xp || 0), 0);
+      const totalXpAwarded = Math.max(xpFromResults, xpFromHistory, xpFromStudents);
 
       const gameCounts: Record<string, number> = {};
       validResults.forEach((r) => {
-        gameCounts[r.game] = (gameCounts[r.game] || 0) + 1;
+        if (r.game) {
+          gameCounts[r.game] = (gameCounts[r.game] || 0) + 1;
+        }
       });
+      if (Object.keys(gameCounts).length === 0) {
+        xpEntries.forEach((x) => {
+          if (x.game) {
+            gameCounts[x.game] = (gameCounts[x.game] || 0) + 1;
+          }
+        });
+      }
 
       let mostPlayedGame = 'None';
       let maxCount = 0;
@@ -967,11 +1016,19 @@ async function startServer() {
       const sortedStudents = [...students].sort((a, b) => (b.xp || 0) - (a.xp || 0));
       const currentLeader =
         sortedStudents.length > 0
-          ? sortedStudents[0].fullName + ' (' + sortedStudents[0].gamerTag + ')'
+          ? `${sortedStudents[0].fullName} (@${sortedStudents[0].gamerTag})`
           : 'None';
 
       const totalWins = students.reduce((acc, s) => acc + (s.wins || 0), 0);
       const averageXp = totalParticipants > 0 ? Math.round(totalXpAwarded / totalParticipants) : 0;
+
+      // Tier Breakdown
+      const tierCounts = {
+        Legend: students.filter((s) => s.rankTier === 'Legend').length,
+        Nova: students.filter((s) => s.rankTier === 'Nova').length,
+        Blaze: students.filter((s) => s.rankTier === 'Blaze').length,
+        Spark: students.filter((s) => s.rankTier === 'Spark' || !s.rankTier).length
+      };
 
       res.json({
         analytics: {
@@ -981,7 +1038,9 @@ async function startServer() {
           mostPlayedGame,
           currentLeader,
           totalWins,
-          averageXp
+          averageXp,
+          tierCounts,
+          gameBreakdown: gameCounts
         }
       });
     } catch (err) {

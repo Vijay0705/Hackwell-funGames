@@ -55,12 +55,14 @@ export default function App() {
 
   const isFetchingRef = React.useRef(false);
 
-  // Fetch initial app data (leaderboard / student roster) and restore existing session
-  const fetchData = async () => {
+  // Fetch app data (leaderboard / student roster) and restore existing session
+  const fetchData = async (isInitial = false) => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     try {
-      setLoading(true);
+      if (isInitial) {
+        setLoading(true);
+      }
       const token = localStorage.getItem('hero_rank_token');
       const hasValidToken = Boolean(token && token !== 'null' && token !== 'undefined' && token.trim() !== '');
 
@@ -95,18 +97,22 @@ export default function App() {
         if (hasValidToken && meRes && meRes.status === 401) {
           localStorage.removeItem('hero_rank_token');
         }
-        setCurrentUser(null);
+        if (!hasValidToken) {
+          setCurrentUser(null);
+        }
       }
     } catch (err) {
       console.error('Failed to load application data:', err);
     } finally {
-      setLoading(false);
+      if (isInitial) {
+        setLoading(false);
+      }
       isFetchingRef.current = false;
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchData(true);
   }, []);
 
   // Student Google Authentication Handler
