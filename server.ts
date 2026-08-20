@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
-import { initializeApp, getApps } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getFirestore,
   setLogLevel,
@@ -22,7 +22,7 @@ import { createServer as createViteServer } from 'vite';
 import { User, GameResult, XpHistoryEntry, AuditLogEntry, RankTier, EventGame } from './src/types.js';
 import { calculateRankTier } from './src/server/seedData.js';
 
-dotenv.config();
+dotenv.config({ path: ['.env', 'env'] });
 setLogLevel('error');
 
 const PORT = process.env.PORT || 3000;
@@ -85,7 +85,7 @@ const firebaseConfig = {
   measurementId: process.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
-const appInstance = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const appInstance = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const firestoreDb = getFirestore(appInstance);
 
 // --- FIRESTORE HELPER UTILITIES ---
@@ -99,13 +99,26 @@ function stripPasswordHash(user: User): Omit<User, 'passwordHash'> {
 }
 
 async function getUserById(userId: string): Promise<User | null> {
+  if (!userId || typeof userId !== 'string') return null;
   try {
     const snap = await getDoc(doc(firestoreDb, 'users', userId));
     if (snap.exists()) {
-      return snap.data() as User;
+      const data = snap.data() as User;
+      return { ...data, id: data.id || snap.id };
     }
-  } catch (err) {
-    console.error(`Error fetching user ${userId} from Firestore:`, err);
+    // Fallback: search by id field if document key in Firestore is different
+    const q = query(collection(firestoreDb, 'users'), where('id', '==', userId));
+    const snapQ = await getDocs(q);
+    if (!snapQ.empty) {
+      const data = snapQ.docs[0].data() as User;
+      return { ...data, id: data.id || snapQ.docs[0].id };
+    }
+  } catch (err: any) {
+    if (err?.code === 'unavailable' || err?.message?.includes('offline')) {
+      console.warn(`⚠️ Firestore temporarily unavailable while fetching user (${userId}).`);
+    } else {
+      console.error(`Error fetching user ${userId} from Firestore:`, err);
+    }
   }
   return null;
 }
@@ -158,9 +171,11 @@ async function getAllStudentsFromFirestore(): Promise<User[]> {
     const students: User[] = [];
     snap.forEach((docSnap) => {
       const u = docSnap.data() as User;
-      if (u.role === 'student' || u.role === 'participant') {
+      const roleStr = String(u.role || '').toLowerCase();
+      if (roleStr === 'student' || roleStr === 'participant' || (!roleStr && u.id !== 'usr_admin_vijay')) {
         students.push({
           ...u,
+          id: u.id || docSnap.id,
           rankTier: calculateRankTier(u.xp || 0)
         });
       }
@@ -197,8 +212,8 @@ async function logAudit(
 async function getAuthUser(req: express.Request): Promise<User | null> {
   const authHeader = req.headers.authorization;
   if (!authHeader) return null;
-  const token = authHeader.replace('Bearer ', '').trim();
-  if (!token) return null;
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  if (!token || token === 'null' || token === 'undefined') return null;
 
   try {
     const sessionSnap = await getDoc(doc(firestoreDb, 'sessions', token));
@@ -206,11 +221,17 @@ async function getAuthUser(req: express.Request): Promise<User | null> {
 
     const sessionData = sessionSnap.data();
     const userId = sessionData?.userId;
-    if (!userId) return null;
+    if (!userId || typeof userId !== 'string') return null;
 
     return await getUserById(userId);
-  } catch (err) {
-    console.error('Error resolving auth user session from Firestore:', err);
+  } catch (err: any) {
+    if (err?.code === 'unavailable' || err?.message?.includes('offline')) {
+      console.warn('⚠️ Firestore temporarily unavailable or client offline while resolving auth session.');
+    } else if (err?.code === 'permission-denied') {
+      console.warn('⚠️ Firestore permission denied while resolving auth session.');
+    } else {
+      console.error('Error resolving auth user session from Firestore:', err);
+    }
     return null;
   }
 }
@@ -707,7 +728,7 @@ async function startServer() {
       }
 
       const student = await getUserById(userId);
-      if (!student || (student.role !== 'student' && student.role !== 'participant')) {
+      if (!student) {
         return res.status(404).json({ error: 'Selected student participant not found' });
       }
 
@@ -732,8 +753,11 @@ async function startServer() {
         losses: newLosses
       };
 
+      const resultId = 'res_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+      const xpId = 'xp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+
       const newResult: GameResult = {
-        id: 'res_' + Date.now(),
+        id: resultId,
         userId: student.id,
         userGamerTag: student.gamerTag,
         userFullName: student.fullName,
@@ -747,11 +771,11 @@ async function startServer() {
       };
 
       const newXpEntry: XpHistoryEntry = {
-        id: 'xp_' + Date.now(),
+        id: xpId,
         userId: student.id,
         userGamerTag: student.gamerTag,
         game,
-        result: game === 'Dumb Charades' ? `WIN (${newResult.moviesWon} Movies)` : result,
+        result: game === 'Dumb Charades' ? `WIN (${newResult.moviesWon || 0} Movies)` : result,
         amount: xpAwarded,
         performedBy: admin.email,
         createdAt: new Date().toISOString()

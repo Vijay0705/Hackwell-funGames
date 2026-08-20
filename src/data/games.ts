@@ -30,18 +30,18 @@ export const EVENT_GAMES: GameInfo[] = [
     banner: 'https://images.pexels.com/photos/12612258/pexels-photo-12612258.jpeg'
   },
   {
-    id: 'game_drawasourous',
-    name: 'Drawasourous / Scribble.io',
-    category: 'Party & Creativity',
-    description: 'Multi-player online drawing and word guessing competition testing speed and visual recognition.',
+    id: 'game_freefire_bgmi',
+    name: 'Free Fire / BGMI',
+    category: 'Battle Royale & Esports',
+    description: 'High-octane mobile battle royale survival tournament testing tactical gunplay, team positioning, and reflexes.',
     rules: [
-      'Round-robin 3-round drawing sessions.',
-      'No letters or numbers allowed inside drawings.',
-      'Highest cumulative score at round end earns the win.'
+      'Squad or Solo tournament brackets with official tournament rules.',
+      'Last player or team standing claims the Chicken Dinner / Booyah.',
+      'Official referees log match rankings and points.'
     ],
-    xpRule: 'WIN: +10 XP | LOSS: 0 XP',
-    winXpText: '+10 XP for Win',
-    banner: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&auto=format&fit=crop&q=80'
+    xpRule: 'WIN: +60 XP | LOSS: 0 XP',
+    winXpText: '+60 XP for Win',
+    banner: 'https://sajidztech.com/wp-content/uploads/2024/09/4260bc90-ab40-40df-9bea-12eb487cecb9_PUBG-Mobile-vs-Free-Fire.jpeg'
   },
   {
     id: 'game_amongus',
@@ -51,11 +51,11 @@ export const EVENT_GAMES: GameInfo[] = [
     rules: [
       '10 players per lobby with 2 Impostors.',
       'Emergency meetings have 60-second discussion limit.',
-      'Victorious side (Crewmates or Impostors) earn XP.'
+      'Victorious side (Crewmates or Impostors) earn XP.',
     ],
     xpRule: 'WIN: +15 XP | LOSS: 0 XP',
     winXpText: '+15 XP for Win',
-    banner: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800&auto=format&fit=crop&q=80'
+    banner: 'https://4kwallpapers.com/images/wallpapers/among-us-game-3840x2160-20157.png'
   },
   {
     id: 'game_antakshiri',
@@ -100,18 +100,18 @@ export const EVENT_GAMES: GameInfo[] = [
     banner: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=800&auto=format&fit=crop&q=80'
   },
   {
-    id: 'game_freefire_bgmi',
-    name: 'Free Fire / BGMI',
-    category: 'Battle Royale & Esports',
-    description: 'High-octane mobile battle royale survival tournament testing tactical gunplay, team positioning, and reflexes.',
+    id: 'game_drawasourous',
+    name: 'Drawasourous / Scribble.io',
+    category: 'Party & Creativity',
+    description: 'Multi-player online drawing and word guessing competition testing speed and visual recognition.',
     rules: [
-      'Squad or Solo tournament brackets with official tournament rules.',
-      'Last player or team standing claims the Chicken Dinner / Booyah.',
-      'Official referees log match rankings and points.'
+      'Round-robin 3-round drawing sessions.',
+      'No letters or numbers allowed inside drawings.',
+      'Highest cumulative score at round end earns the win.'
     ],
-    xpRule: 'WIN: +60 XP | LOSS: 0 XP',
-    winXpText: '+60 XP for Win',
-    banner: 'https://sajidztech.com/wp-content/uploads/2024/09/4260bc90-ab40-40df-9bea-12eb487cecb9_PUBG-Mobile-vs-Free-Fire.jpeg'
+    xpRule: 'WIN: +10 XP | LOSS: 0 XP',
+    winXpText: '+10 XP for Win',
+    banner: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&auto=format&fit=crop&q=80'
   }
 ];
 

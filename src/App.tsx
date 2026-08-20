@@ -53,26 +53,38 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  const isFetchingRef = React.useRef(false);
+
   // Fetch initial app data (leaderboard / student roster) and restore existing session
   const fetchData = async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     try {
       setLoading(true);
+      const token = localStorage.getItem('hero_rank_token');
+      const hasValidToken = Boolean(token && token !== 'null' && token !== 'undefined' && token.trim() !== '');
 
-      const [usersRes, meRes] = await Promise.all([
+      const promises: [Promise<Response>, Promise<Response | null>] = [
         fetch('/api/users'),
-        fetch('/api/auth/me', {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('hero_rank_token') || ''}`
-          }
-        })
-      ]);
+        hasValidToken
+          ? fetch('/api/auth/me', {
+              headers: {
+                Authorization: `Bearer ${token}`
+              }
+            })
+          : Promise.resolve(null)
+      ];
 
-      const usersData = await usersRes.json();
-      if (usersData.users) {
-        setStudents(usersData.users);
+      const [usersRes, meRes] = await Promise.all(promises);
+
+      if (usersRes.ok) {
+        const usersData = await usersRes.json();
+        if (usersData.users) {
+          setStudents(usersData.users);
+        }
       }
 
-      if (meRes.ok) {
+      if (meRes && meRes.ok) {
         const meData = await meRes.json();
         if (meData.user) {
           setCurrentUser(meData.user);
@@ -80,12 +92,16 @@ export default function App() {
           setCurrentUser(null);
         }
       } else {
+        if (hasValidToken && meRes && meRes.status === 401) {
+          localStorage.removeItem('hero_rank_token');
+        }
         setCurrentUser(null);
       }
     } catch (err) {
       console.error('Failed to load application data:', err);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
   };
 
