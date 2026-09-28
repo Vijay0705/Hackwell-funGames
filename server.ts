@@ -353,16 +353,6 @@ function ensureSchemaInitialized() {
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 
-// Middleware to ensure Firestore schema and admin user are initialized on every environment (including Vercel)
-app.use(async (req, res, next) => {
-  try {
-    await ensureSchemaInitialized();
-  } catch (e) {
-    // Ignore schema init errors to avoid blocking request execution
-  }
-  next();
-});
-
   // --- API ROUTES ---
 
   // Health check
