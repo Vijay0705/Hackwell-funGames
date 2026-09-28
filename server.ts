@@ -424,12 +424,29 @@ async function ensureSchemaAndInitialData() {
   }
 }
 
-// --- SERVER INITIALIZATION ---
-
-console.log(`⚡ Initializing 100% Cloud Firestore Backend (Project: ${firebaseConfig.projectId})...`);
+let schemaInitializedPromise: Promise<void> | null = null;
+function ensureSchemaInitialized() {
+  if (!schemaInitializedPromise) {
+    schemaInitializedPromise = ensureSchemaAndInitialData().catch((err) => {
+      console.error('Failed to initialize schema:', err);
+      schemaInitializedPromise = null;
+    });
+  }
+  return schemaInitializedPromise;
+}
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
+
+// Middleware to ensure Firestore schema and admin user are initialized on every environment (including Vercel)
+app.use(async (req, res, next) => {
+  try {
+    await ensureSchemaInitialized();
+  } catch (e) {
+    // Ignore schema init errors to avoid blocking request execution
+  }
+  next();
+});
 
   // --- API ROUTES ---
 

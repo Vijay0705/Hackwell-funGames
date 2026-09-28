@@ -92,7 +92,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         })
       });
 
-      let data = await res.json();
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        data = { error: `Server error (${res.status}).` };
+      }
 
       // If participant login fails, try admin login endpoint
       if (!res.ok || data.error) {
@@ -105,9 +110,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           })
         });
 
-        const adminData = await adminRes.json();
+        let adminData: any = {};
+        try {
+          adminData = await adminRes.json();
+        } catch (jsonErr) {
+          adminData = { error: `Admin login server error (${adminRes.status}).` };
+        }
+
         if (adminRes.ok && adminData.token && adminData.user) {
           res = adminRes;
+          data = adminData;
+        } else if (!res.ok && adminData.error) {
           data = adminData;
         }
       }

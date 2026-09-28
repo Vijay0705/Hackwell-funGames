@@ -126,16 +126,48 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth/login', {
+      const identifier = loginUsername.trim();
+      let res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: loginUsername.trim(),
+          username: identifier,
           password: loginPassword
         })
       });
 
-      const data = await res.json();
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        data = { error: `Server error (${res.status}).` };
+      }
+
+      // If student login fails, try admin login endpoint fallback
+      if (!res.ok || data.error) {
+        const adminRes = await fetch('/api/auth/admin-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: identifier,
+            password: loginPassword
+          })
+        });
+
+        let adminData: any = {};
+        try {
+          adminData = await adminRes.json();
+        } catch (jsonErr) {
+          adminData = { error: `Admin login server error (${adminRes.status}).` };
+        }
+
+        if (adminRes.ok && adminData.token && adminData.user) {
+          res = adminRes;
+          data = adminData;
+        } else if (!res.ok && adminData.error) {
+          data = adminData;
+        }
+      }
 
       if (!res.ok || data.error) {
         setError(data.error || 'Invalid username/email or password.');
