@@ -86,7 +86,9 @@ const firebaseConfig = {
 };
 
 const appInstance = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-const firestoreDb = getFirestore(appInstance);
+const firestoreDb = initializeFirestore(appInstance, {
+  experimentalForceLongPolling: true
+});
 
 // --- FIRESTORE HELPER UTILITIES ---
 
