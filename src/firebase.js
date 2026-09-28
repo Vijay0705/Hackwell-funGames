@@ -6,13 +6,13 @@ import { getAnalytics, isSupported } from "firebase/analytics";
 setLogLevel("error");
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyAIOWlMHhnzfcVUzCGULbdfS6IzqJItASY",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "hackwell-fungames.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "hackwell-fungames",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "hackwell-fungames.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "206289606816",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:206289606816:web:5c71780d13f2ef274ed1c5",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-PDBGNEYX7S",
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();

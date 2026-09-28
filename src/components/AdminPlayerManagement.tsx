@@ -30,11 +30,11 @@ export const AdminPlayerManagement: React.FC<AdminPlayerManagementProps> = ({ st
 
   const filtered = students.filter(
     (s) =>
-      s.fullName.toLowerCase().includes(search.toLowerCase()) ||
-      s.gamerTag.toLowerCase().includes(search.toLowerCase()) ||
-      s.email.toLowerCase().includes(search.toLowerCase()) ||
-      s.department.toLowerCase().includes(search.toLowerCase()) ||
-      s.studentId.toLowerCase().includes(search.toLowerCase())
+      (s.fullName || '').toLowerCase().includes(search.toLowerCase()) ||
+      (s.gamerTag || '').toLowerCase().includes(search.toLowerCase()) ||
+      (s.email || '').toLowerCase().includes(search.toLowerCase()) ||
+      (s.department || '').toLowerCase().includes(search.toLowerCase()) ||
+      (s.studentId || '').toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -90,25 +90,29 @@ export const AdminPlayerManagement: React.FC<AdminPlayerManagementProps> = ({ st
                   >
                     <td className="p-3 border-r-2 border-black">
                       <div className="flex items-center gap-2.5">
-                        <img src={st.avatar} alt={st.gamerTag} className="w-8 h-8 object-cover border-2 border-black" />
+                        <img
+                          src={st.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${st.gamerTag || st.id}`}
+                          alt={st.gamerTag || 'Player'}
+                          className="w-8 h-8 object-cover border-2 border-black"
+                        />
                         <div>
-                          <p className="font-black text-xs uppercase text-black">{st.fullName}</p>
-                          <p className="text-[10px] font-black text-[#D90429] uppercase">@{st.gamerTag}</p>
+                          <p className="font-black text-xs uppercase text-black">{st.fullName || st.gamerTag || st.id}</p>
+                          <p className="text-[10px] font-black text-[#D90429] uppercase">@{st.gamerTag || 'player'}</p>
                         </div>
                       </div>
                     </td>
                     <td className="p-3 border-r-2 border-black font-mono text-slate-700">
-                      <p>{st.email}</p>
-                      <p className="text-[10px] text-slate-500">ID: {st.studentId}</p>
+                      <p>{st.email || 'N/A'}</p>
+                      <p className="text-[10px] text-slate-500">ID: {st.studentId || 'N/A'}</p>
                     </td>
-                    <td className="p-3 border-r-2 border-black font-mono uppercase text-slate-700">{st.department}</td>
-                    <td className="p-3 border-r-2 border-black font-black uppercase">{calculateRankTier(st.xp)}</td>
+                    <td className="p-3 border-r-2 border-black font-mono uppercase text-slate-700">{st.department || 'N/A'}</td>
+                    <td className="p-3 border-r-2 border-black font-black uppercase">{calculateRankTier(st.xp || 0)}</td>
                     <td className="p-3 border-r-2 border-black font-mono font-black text-sm text-[#D90429]">
-                      {st.xp.toLocaleString()} XP
+                      {(st.xp || 0).toLocaleString()} XP
                     </td>
-                    <td className="p-3 border-r-2 border-black text-center font-mono font-black">{st.gamesPlayed}</td>
+                    <td className="p-3 border-r-2 border-black text-center font-mono font-black">{st.gamesPlayed || 0}</td>
                     <td className="p-3 text-center font-mono font-black">
-                      <span className="text-emerald-600">{st.wins}W</span> / <span className="text-rose-600">{st.losses}L</span>
+                      <span className="text-emerald-600">{st.wins || 0}W</span> / <span className="text-rose-600">{st.losses || 0}L</span>
                     </td>
                   </tr>
                 ))}

@@ -77,13 +77,13 @@ export function calculateXpForGame(game: string, result: string, moviesWon?: num
 
 // Cloud Firestore Database Initialization
 const firebaseConfig = {
-  apiKey: process.env.VITE_FIREBASE_API_KEY,
-  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.VITE_FIREBASE_APP_ID,
-  measurementId: process.env.VITE_FIREBASE_MEASUREMENT_ID
+  apiKey: process.env.VITE_FIREBASE_API_KEY || 'AIzaSyAIOWlMHhnzfcVUzCGULbdfS6IzqJItASY',
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || 'hackwell-fungames.firebaseapp.com',
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID || 'hackwell-fungames',
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || 'hackwell-fungames.firebasestorage.app',
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '206289606816',
+  appId: process.env.VITE_FIREBASE_APP_ID || '1:206289606816:web:5c71780d13f2ef274ed1c5',
+  measurementId: process.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-PDBGNEYX7S'
 };
 
 const appInstance = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -197,13 +197,35 @@ async function getAllStudentsFromFirestore(): Promise<User[]> {
     snap.forEach((docSnap) => {
       const u = docSnap.data() as User;
       const roleStr = String(u.role || '').toLowerCase();
-      if (roleStr === 'student' || roleStr === 'participant' || (!roleStr && u.id !== 'usr_admin_vijay')) {
-        students.push({
-          ...u,
-          id: u.id || docSnap.id,
-          rankTier: calculateRankTier(u.xp || 0)
-        });
-      }
+
+      // Skip admin account or documents missing basic user identity
+      if (u.id === 'usr_admin_vijay' || roleStr === 'admin') return;
+
+      const fullName = u.fullName || u.gamerTag || (u.email ? u.email.split('@')[0] : '');
+      const gamerTag = u.gamerTag || fullName || (u.email ? u.email.split('@')[0] : '');
+
+      // Skip incomplete test documents with no name, gamerTag, or email
+      if (!fullName && !gamerTag && !u.email) return;
+
+      const xp = typeof u.xp === 'number' ? u.xp : 0;
+      students.push({
+        ...u,
+        id: u.id || docSnap.id,
+        fullName: fullName || 'Anonymous Player',
+        gamerTag: gamerTag || 'player',
+        email: u.email || `${(gamerTag || 'player').toLowerCase()}@gamingarena.edu`,
+        department: u.department || 'CSE',
+        teamName: u.teamName || u.studentId || 'N/A',
+        studentId: u.studentId || 'ST-000',
+        role: u.role || 'student',
+        avatar: u.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(gamerTag || docSnap.id)}`,
+        xp,
+        rankTier: calculateRankTier(xp),
+        gamesPlayed: typeof u.gamesPlayed === 'number' ? u.gamesPlayed : 0,
+        wins: typeof u.wins === 'number' ? u.wins : 0,
+        losses: typeof u.losses === 'number' ? u.losses : 0,
+        joinedAt: u.joinedAt || new Date().toISOString().split('T')[0]
+      });
     });
     return students;
   } catch (err) {
