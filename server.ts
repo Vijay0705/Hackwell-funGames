@@ -2,28 +2,10 @@ import express from 'express';
 import path from 'path';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import {
-  getFirestore,
-  initializeFirestore,
-  setLogLevel,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  deleteDoc,
-  collection,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  limit
-} from 'firebase/firestore';
 import { User, GameResult, XpHistoryEntry, AuditLogEntry, RankTier, EventGame } from './src/types';
 import { calculateRankTier } from './src/server/seedData';
 
 dotenv.config({ path: ['.env', 'env'] });
-setLogLevel('error');
 
 const PORT = process.env.PORT || 3000;
 
@@ -85,31 +67,119 @@ const firebaseConfig = {
   measurementId: process.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-PDBGNEYX7S'
 };
 
-const appInstance = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-const firestoreDb = initializeFirestore(appInstance, {
-  experimentalForceLongPolling: true
-});
+const FIREBASE_REST_BASE = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents`;
+const FIREBASE_API_KEY = firebaseConfig.apiKey;
 
-// --- FIRESTORE HELPER UTILITIES ---
-
-async function withFirestoreRetry<T>(op: () => Promise<T>, retries = 3, delayMs = 200): Promise<T> {
-  let lastErr: any;
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await op();
-    } catch (err: any) {
-      lastErr = err;
-      const isOffline =
-        err?.code === 'unavailable' ||
-        (err?.message && String(err.message).toLowerCase().includes('client is offline'));
-      if (isOffline && i < retries - 1) {
-        await new Promise((res) => setTimeout(res, delayMs * (i + 1)));
-        continue;
-      }
-      throw err;
+function objToFirestoreFields(obj: Record<string, any>): Record<string, any> {
+  const fields: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined || value === null) continue;
+    if (typeof value === 'number') {
+      fields[key] = { integerValue: String(Math.floor(value)) };
+    } else if (typeof value === 'boolean') {
+      fields[key] = { booleanValue: value };
+    } else if (typeof value === 'string') {
+      fields[key] = { stringValue: value };
+    } else if (Array.isArray(value)) {
+      fields[key] = {
+        arrayValue: {
+          values: value.map((v) =>
+            typeof v === 'number'
+              ? { integerValue: String(Math.floor(v)) }
+              : typeof v === 'boolean'
+              ? { booleanValue: v }
+              : { stringValue: String(v) }
+          )
+        }
+      };
+    } else if (typeof value === 'object') {
+      fields[key] = { mapValue: { fields: objToFirestoreFields(value) } };
     }
   }
-  throw lastErr;
+  return fields;
+}
+
+function firestoreFieldsToObj(fields?: Record<string, any>): Record<string, any> {
+  if (!fields) return {};
+  const obj: Record<string, any> = {};
+  for (const [key, valObj] of Object.entries(fields)) {
+    if (!valObj) continue;
+    if ('stringValue' in valObj) obj[key] = valObj.stringValue;
+    else if ('integerValue' in valObj) obj[key] = parseInt(valObj.integerValue, 10);
+    else if ('doubleValue' in valObj) obj[key] = parseFloat(valObj.doubleValue);
+    else if ('booleanValue' in valObj) obj[key] = valObj.booleanValue;
+    else if ('mapValue' in valObj) obj[key] = firestoreFieldsToObj(valObj.mapValue?.fields);
+    else if ('arrayValue' in valObj) {
+      const arr = valObj.arrayValue?.values || [];
+      obj[key] = arr.map((item: any) => {
+        if ('stringValue' in item) return item.stringValue;
+        if ('integerValue' in item) return parseInt(item.integerValue, 10);
+        if ('doubleValue' in item) return parseFloat(item.doubleValue);
+        if ('booleanValue' in item) return item.booleanValue;
+        if ('mapValue' in item) return firestoreFieldsToObj(item.mapValue?.fields);
+        return null;
+      });
+    }
+  }
+  return obj;
+}
+
+async function fsGetDoc(collectionName: string, docId: string): Promise<Record<string, any> | null> {
+  try {
+    const url = `${FIREBASE_REST_BASE}/${collectionName}/${encodeURIComponent(docId)}?key=${FIREBASE_API_KEY}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.fields) return { id: docId };
+    return { ...firestoreFieldsToObj(json.fields), id: docId };
+  } catch (e) {
+    return null;
+  }
+}
+
+async function fsSetDoc(collectionName: string, docId: string, data: Record<string, any>): Promise<boolean> {
+  try {
+    const url = `${FIREBASE_REST_BASE}/${collectionName}/${encodeURIComponent(docId)}?key=${FIREBASE_API_KEY}`;
+    const fields = objToFirestoreFields(data);
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields })
+    });
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function fsDeleteDoc(collectionName: string, docId: string): Promise<boolean> {
+  try {
+    const url = `${FIREBASE_REST_BASE}/${collectionName}/${encodeURIComponent(docId)}?key=${FIREBASE_API_KEY}`;
+    const res = await fetch(url, { method: 'DELETE' });
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function fsGetCollection(collectionName: string): Promise<Record<string, any>[]> {
+  try {
+    const url = `${FIREBASE_REST_BASE}/${collectionName}?key=${FIREBASE_API_KEY}&pageSize=300`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const json = await res.json();
+    const docs: Record<string, any>[] = [];
+    if (json.documents && Array.isArray(json.documents)) {
+      for (const d of json.documents) {
+        const id = d.name ? d.name.split('/').pop() : '';
+        const parsed = firestoreFieldsToObj(d.fields);
+        if (id) docs.push({ ...parsed, id: parsed.id || id });
+      }
+    }
+    return docs;
+  } catch (e) {
+    return [];
+  }
 }
 
 function stripPasswordHash(user: User): Omit<User, 'passwordHash'> {
@@ -122,94 +192,42 @@ function stripPasswordHash(user: User): Omit<User, 'passwordHash'> {
 
 async function getUserById(userId: string): Promise<User | null> {
   if (!userId || typeof userId !== 'string' || userId === 'null' || userId === 'undefined') return null;
-  try {
-    const snap = await withFirestoreRetry(() => getDoc(doc(firestoreDb, 'users', userId)));
-    if (snap.exists()) {
-      const data = snap.data() as User;
-      return { ...data, id: data.id || snap.id };
-    }
-    // Fallback: search by id field if document key in Firestore is different
-    const q = query(collection(firestoreDb, 'users'), where('id', '==', userId));
-    const snapQ = await withFirestoreRetry(() => getDocs(q));
-    if (!snapQ.empty) {
-      const data = snapQ.docs[0].data() as User;
-      return { ...data, id: data.id || snapQ.docs[0].id };
-    }
-  } catch (err: any) {
-    if (err?.code === 'unavailable' || String(err?.message).includes('client is offline')) {
-      console.warn(`[Firestore Offline] Transient network issue reading user profile document ${userId}`);
-    } else {
-      console.error(`Error fetching user ${userId} from Firestore:`, err);
-    }
-  }
-  return null;
+  const docData = await fsGetDoc('users', userId);
+  if (docData && docData.id) return docData as User;
+  const allUsers = await fsGetCollection('users');
+  return (allUsers.find((u) => u.id === userId) as User) || null;
 }
 
 async function getUserByGamerTag(gamerTag: string): Promise<User | null> {
   if (!gamerTag || !gamerTag.trim()) return null;
-  try {
-    const q = query(collection(firestoreDb, 'users'), where('gamerTag', '==', gamerTag.trim()));
-    const snap = await withFirestoreRetry(() => getDocs(q));
-    if (!snap.empty) {
-      return snap.docs[0].data() as User;
-    }
-    // Case-insensitive fallback lookup
-    const allSnap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'users')));
-    for (const d of allSnap.docs) {
-      const u = d.data() as User;
-      if (u.gamerTag && u.gamerTag.toLowerCase() === gamerTag.trim().toLowerCase()) {
-        return u;
-      }
-    }
-  } catch (err) {
-    console.error(`Error finding user by gamerTag ${gamerTag}:`, err);
-  }
-  return null;
+  const tagLower = gamerTag.trim().toLowerCase();
+  const allUsers = await fsGetCollection('users');
+  return (allUsers.find((u) => u.gamerTag && String(u.gamerTag).toLowerCase() === tagLower) as User) || null;
 }
 
 async function getUserByEmail(email: string): Promise<User | null> {
   if (!email || !email.trim()) return null;
-  try {
-    const q = query(collection(firestoreDb, 'users'), where('email', '==', email.trim()));
-    const snap = await withFirestoreRetry(() => getDocs(q));
-    if (!snap.empty) {
-      return snap.docs[0].data() as User;
-    }
-    // Case-insensitive fallback
-    const allSnap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'users')));
-    for (const d of allSnap.docs) {
-      const u = d.data() as User;
-      if (u.email && u.email.toLowerCase() === email.trim().toLowerCase()) {
-        return u;
-      }
-    }
-  } catch (err) {
-    console.error(`Error finding user by email ${email}:`, err);
-  }
-  return null;
+  const emailLower = email.trim().toLowerCase();
+  const allUsers = await fsGetCollection('users');
+  return (allUsers.find((u) => u.email && String(u.email).toLowerCase() === emailLower) as User) || null;
 }
 
 async function getAllStudentsFromFirestore(): Promise<User[]> {
   try {
-    const snap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'users')));
+    const allDocs = await fsGetCollection('users');
     const students: User[] = [];
-    snap.forEach((docSnap) => {
-      const u = docSnap.data() as User;
+    for (const u of allDocs) {
       const roleStr = String(u.role || '').toLowerCase();
-
-      // Skip admin account or documents missing basic user identity
-      if (u.id === 'usr_admin_vijay' || roleStr === 'admin') return;
+      if (u.id === 'usr_admin_vijay' || roleStr === 'admin') continue;
 
       const fullName = u.fullName || u.gamerTag || (u.email ? u.email.split('@')[0] : '');
       const gamerTag = u.gamerTag || fullName || (u.email ? u.email.split('@')[0] : '');
-
-      // Skip incomplete test documents with no name, gamerTag, or email
-      if (!fullName && !gamerTag && !u.email) return;
+      if (!fullName && !gamerTag && !u.email) continue;
 
       const xp = typeof u.xp === 'number' ? u.xp : 0;
       students.push({
-        ...u,
-        id: u.id || docSnap.id,
+        ...(u as User),
+        id: u.id,
         fullName: fullName || 'Anonymous Player',
         gamerTag: gamerTag || 'player',
         email: u.email || `${(gamerTag || 'player').toLowerCase()}@gamingarena.edu`,
@@ -217,7 +235,7 @@ async function getAllStudentsFromFirestore(): Promise<User[]> {
         teamName: u.teamName || u.studentId || 'N/A',
         studentId: u.studentId || 'ST-000',
         role: u.role || 'student',
-        avatar: u.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(gamerTag || docSnap.id)}`,
+        avatar: u.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(gamerTag || u.id)}`,
         xp,
         rankTier: calculateRankTier(xp),
         gamesPlayed: typeof u.gamesPlayed === 'number' ? u.gamesPlayed : 0,
@@ -225,10 +243,10 @@ async function getAllStudentsFromFirestore(): Promise<User[]> {
         losses: typeof u.losses === 'number' ? u.losses : 0,
         joinedAt: u.joinedAt || new Date().toISOString().split('T')[0]
       });
-    });
+    }
     return students;
   } catch (err) {
-    console.error('Error fetching all students from Firestore:', err);
+    console.error('Error fetching all students from Firestore REST:', err);
     return [];
   }
 }
@@ -248,14 +266,11 @@ async function logAudit(
       ipAddress: req?.ip || '127.0.0.1',
       createdAt: new Date().toISOString()
     };
-    await withFirestoreRetry(() => setDoc(doc(firestoreDb, 'auditLogs', entry.id), entry));
+    await fsSetDoc('auditLogs', entry.id, entry);
   } catch (err) {
-    console.error('Failed to write audit log to Firestore:', err);
+    console.error('Failed to write audit log to Firestore REST:', err);
   }
 }
-
-// Authentication Helpers
-const inFlightSessions = new Map<string, Promise<User | null>>();
 
 async function getAuthUser(req: express.Request): Promise<User | null> {
   const authHeader = req.headers.authorization;
@@ -263,36 +278,13 @@ async function getAuthUser(req: express.Request): Promise<User | null> {
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
   if (!token || token === 'null' || token === 'undefined') return null;
 
-  if (inFlightSessions.has(token)) {
-    return inFlightSessions.get(token)!;
+  try {
+    const sessionData = await fsGetDoc('sessions', token);
+    if (!sessionData || !sessionData.userId) return null;
+    return await getUserById(sessionData.userId);
+  } catch (err) {
+    return null;
   }
-
-  const sessionPromise = (async () => {
-    try {
-      const sessionSnap = await withFirestoreRetry(() => getDoc(doc(firestoreDb, 'sessions', token)));
-      if (!sessionSnap.exists()) return null;
-
-      const sessionData = sessionSnap.data();
-      const userId = sessionData?.userId;
-      if (!userId || typeof userId !== 'string' || userId === 'null' || userId === 'undefined') return null;
-
-      return await getUserById(userId);
-    } catch (err: any) {
-      if (err?.code === 'unavailable' || String(err?.message).includes('client is offline')) {
-        console.warn(`[Firestore Offline] Transient network issue resolving session token: ${token.substring(0, 12)}...`);
-      } else if (err?.code === 'permission-denied') {
-        console.warn('⚠️ Firestore permission denied while resolving auth session.');
-      } else {
-        console.error('Error resolving auth user session from Firestore:', err);
-      }
-      return null;
-    } finally {
-      inFlightSessions.delete(token);
-    }
-  })();
-
-  inFlightSessions.set(token, sessionPromise);
-  return sessionPromise;
 }
 
 async function getAdminUser(req: express.Request): Promise<User | null> {
@@ -302,16 +294,13 @@ async function getAdminUser(req: express.Request): Promise<User | null> {
   return user;
 }
 
-// Seed default official admin account, tournament match results, and schema defaults directly into Firestore
 async function ensureSchemaAndInitialData() {
   const adminEmail = 'ivijaysa@gmail.com';
   const hashedVijayPass = hashPassword('vijay007');
 
   try {
-    const adminDocRef = doc(firestoreDb, 'users', 'usr_admin_vijay');
-    const adminSnap = await withFirestoreRetry(() => getDoc(adminDocRef));
-
-    if (!adminSnap.exists()) {
+    const adminDoc = await fsGetDoc('users', 'usr_admin_vijay');
+    if (!adminDoc || !adminDoc.email) {
       const adminUser: User = {
         id: 'usr_admin_vijay',
         email: adminEmail,
@@ -329,13 +318,12 @@ async function ensureSchemaAndInitialData() {
         losses: 0,
         joinedAt: '2025-01-01'
       };
-      await withFirestoreRetry(() => setDoc(adminDocRef, adminUser));
-      console.log('✅ Admin account (ivijaysa@gmail.com) verified and initialized in Cloud Firestore');
+      await fsSetDoc('users', 'usr_admin_vijay', adminUser);
+      console.log('✅ Admin account (ivijaysa@gmail.com) verified and initialized in Cloud Firestore REST');
     }
 
-    // Initialize auditLogs sample log if empty
-    const auditSnap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'auditLogs')));
-    if (auditSnap.empty) {
+    const auditDocs = await fsGetCollection('auditLogs');
+    if (auditDocs.length === 0) {
       const initialLog: AuditLogEntry = {
         id: 'audit_init_1001',
         action: 'ADMIN_LOGIN',
@@ -344,82 +332,10 @@ async function ensureSchemaAndInitialData() {
         ipAddress: '127.0.0.1',
         createdAt: new Date().toISOString()
       };
-      await withFirestoreRetry(() => setDoc(doc(firestoreDb, 'auditLogs', initialLog.id), initialLog));
-    }
-
-    // Seed gameResults and xpHistory if gameResults collection is empty
-    const gameResultsSnap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'gameResults')));
-    if (gameResultsSnap.empty) {
-      console.log('🔄 Seeding initial gameResults and xpHistory into Cloud Firestore...');
-      const sampleResults: GameResult[] = [
-        {
-          id: 'res_seed_101',
-          userId: 'usr_st_1786962058384_uunvj',
-          userGamerTag: 'nidthish',
-          userFullName: 'nidthish',
-          game: 'Chess',
-          result: 'WIN',
-          xpAwarded: 50,
-          isVoided: false,
-          recordedByAdmin: adminEmail,
-          createdAt: new Date(Date.now() - 86400000).toISOString()
-        },
-        {
-          id: 'res_seed_102',
-          userId: 'usr_st_1786962058384_uunvj',
-          userGamerTag: 'nidthish',
-          userFullName: 'nidthish',
-          game: 'Free Fire / BGMI',
-          result: 'WIN',
-          xpAwarded: 50,
-          isVoided: false,
-          recordedByAdmin: adminEmail,
-          createdAt: new Date(Date.now() - 43200000).toISOString()
-        },
-        {
-          id: 'res_seed_103',
-          userId: 'usr_st_1787058329051_g0rwb',
-          userGamerTag: 'barath789',
-          userFullName: 'Barath',
-          game: 'Chess',
-          result: 'WIN',
-          xpAwarded: 50,
-          isVoided: false,
-          recordedByAdmin: adminEmail,
-          createdAt: new Date(Date.now() - 21600000).toISOString()
-        },
-        {
-          id: 'res_seed_104',
-          userId: 'usr_st_1787120282490_av5lu',
-          userGamerTag: 'premii13',
-          userFullName: 'premii',
-          game: 'UNO',
-          result: 'WIN',
-          xpAwarded: 50,
-          isVoided: false,
-          recordedByAdmin: adminEmail,
-          createdAt: new Date(Date.now() - 10800000).toISOString()
-        }
-      ];
-
-      for (const resDoc of sampleResults) {
-        const xpDoc: XpHistoryEntry = {
-          id: 'xp_' + resDoc.id,
-          userId: resDoc.userId,
-          userGamerTag: resDoc.userGamerTag,
-          game: resDoc.game,
-          result: resDoc.result,
-          amount: resDoc.xpAwarded,
-          performedBy: adminEmail,
-          createdAt: resDoc.createdAt
-        };
-        await withFirestoreRetry(() => setDoc(doc(firestoreDb, 'gameResults', resDoc.id), resDoc));
-        await withFirestoreRetry(() => setDoc(doc(firestoreDb, 'xpHistory', xpDoc.id), xpDoc));
-      }
-      console.log('✅ Default Cloud Firestore match results & XP transaction history successfully written.');
+      await fsSetDoc('auditLogs', initialLog.id, initialLog);
     }
   } catch (err) {
-    console.error('Error ensuring schema in Cloud Firestore:', err);
+    console.error('Error ensuring schema in Cloud Firestore REST:', err);
   }
 }
 
@@ -536,9 +452,9 @@ app.use(async (req, res, next) => {
         joinedAt: new Date().toISOString().split('T')[0]
       };
 
-      // Write directly to Cloud Firestore
-      await setDoc(doc(firestoreDb, 'users', newUser.id), newUser);
-      await setDoc(doc(firestoreDb, 'sessions', token), {
+      // Write directly to Cloud Firestore REST
+      await fsSetDoc('users', newUser.id, newUser);
+      await fsSetDoc('sessions', token, {
         token,
         userId: newUser.id,
         createdAt: new Date().toISOString()
@@ -584,8 +500,8 @@ app.use(async (req, res, next) => {
 
       const token = 'token_st_' + Date.now() + '_' + user.id;
 
-      // Save session in Cloud Firestore
-      await setDoc(doc(firestoreDb, 'sessions', token), {
+      // Save session in Cloud Firestore REST
+      await fsSetDoc('sessions', token, {
         token,
         userId: user.id,
         createdAt: new Date().toISOString()
@@ -629,20 +545,20 @@ app.use(async (req, res, next) => {
           losses: 0,
           joinedAt: new Date().toISOString().split('T')[0]
         };
-        await setDoc(doc(firestoreDb, 'users', user.id), user);
+        await fsSetDoc('users', user.id, user);
       } else {
         const updates: Partial<User> = {};
         if (fullName) updates.fullName = fullName;
         if (avatar) updates.avatar = avatar;
         if (googleId) updates.googleId = googleId;
         if (Object.keys(updates).length > 0) {
-          await updateDoc(doc(firestoreDb, 'users', user.id), updates);
+          await fsSetDoc('users', user.id, { ...user, ...updates });
           user = { ...user, ...updates };
         }
       }
 
       const token = 'token_st_' + Date.now() + '_' + user.id;
-      await setDoc(doc(firestoreDb, 'sessions', token), {
+      await fsSetDoc('sessions', token, {
         token,
         userId: user.id,
         createdAt: new Date().toISOString()
@@ -677,8 +593,8 @@ app.use(async (req, res, next) => {
 
       const token = 'token_adm_' + Date.now() + '_' + Math.random().toString(36).substring(2);
 
-      // Store admin session directly in Firestore
-      await setDoc(doc(firestoreDb, 'sessions', token), {
+      // Store admin session directly in Cloud Firestore REST
+      await fsSetDoc('sessions', token, {
         token,
         userId: adminUser.id,
         createdAt: new Date().toISOString()
@@ -704,7 +620,7 @@ app.use(async (req, res, next) => {
       }
 
       const resetToken = 'reset_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
-      await setDoc(doc(firestoreDb, 'adminResetTokens', resetToken), {
+      await fsSetDoc('adminResetTokens', resetToken, {
         email: admin.email,
         expiresAt: Date.now() + 3600000
       });
@@ -727,27 +643,26 @@ app.use(async (req, res, next) => {
         return res.status(400).json({ error: 'Reset token and new password are required' });
       }
 
-      const tokenDocRef = doc(firestoreDb, 'adminResetTokens', resetToken);
-      const tokenSnap = await getDoc(tokenDocRef);
+      const tokenData = await fsGetDoc('adminResetTokens', resetToken);
 
-      if (!tokenSnap.exists()) {
+      if (!tokenData || !tokenData.email) {
         return res.status(400).json({ error: 'Invalid or expired reset token' });
       }
 
-      const tokenData = tokenSnap.data();
-      if (!tokenData || tokenData.expiresAt < Date.now()) {
-        await deleteDoc(tokenDocRef);
+      if (tokenData.expiresAt && Number(tokenData.expiresAt) < Date.now()) {
+        await fsDeleteDoc('adminResetTokens', resetToken);
         return res.status(400).json({ error: 'Invalid or expired reset token' });
       }
 
       const admin = await getUserByEmail(tokenData.email);
       if (admin) {
-        await updateDoc(doc(firestoreDb, 'users', admin.id), {
+        await fsSetDoc('users', admin.id, {
+          ...admin,
           passwordHash: hashPassword(newPassword)
         });
       }
 
-      await deleteDoc(tokenDocRef);
+      await fsDeleteDoc('adminResetTokens', resetToken);
       await logAudit('PASSWORD_RESET', tokenData.email, `Password updated for admin ${tokenData.email}`, req);
 
       res.json({ success: true, message: 'Password reset successfully. Please log in with your new password.' });
@@ -786,7 +701,7 @@ app.use(async (req, res, next) => {
       if (authHeader) {
         const token = authHeader.replace('Bearer ', '').trim();
         if (token) {
-          await deleteDoc(doc(firestoreDb, 'sessions', token));
+          await fsDeleteDoc('sessions', token);
         }
       }
       res.json({ success: true });
@@ -851,27 +766,16 @@ app.use(async (req, res, next) => {
       const user = await getUserById(req.params.id);
       if (!user) return res.status(404).json({ error: 'Player profile not found' });
 
-      // Query results and XP history directly from Cloud Firestore
-      const resultsSnap = await getDocs(
-        query(collection(firestoreDb, 'gameResults'), where('userId', '==', user.id))
-      );
-      const userResults: GameResult[] = [];
-      resultsSnap.forEach((d) => {
-        const r = d.data() as GameResult;
-        if (!r.isVoided) {
-          userResults.push(r);
-        }
-      });
-      userResults.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      // Query results and XP history directly from Cloud Firestore REST
+      const allResults = await fsGetCollection('gameResults');
+      const userResults = (allResults as GameResult[])
+        .filter((r) => r.userId === user.id && !r.isVoided)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-      const xpSnap = await getDocs(
-        query(collection(firestoreDb, 'xpHistory'), where('userId', '==', user.id))
-      );
-      const userXpHistory: XpHistoryEntry[] = [];
-      xpSnap.forEach((d) => {
-        userXpHistory.push(d.data() as XpHistoryEntry);
-      });
-      userXpHistory.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const allXpHistory = await fsGetCollection('xpHistory');
+      const userXpHistory = (allXpHistory as XpHistoryEntry[])
+        .filter((x) => x.userId === user.id)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       res.json({
         user: stripPasswordHash(user),
@@ -955,10 +859,10 @@ app.use(async (req, res, next) => {
         createdAt: new Date().toISOString()
       };
 
-      // Write directly to Cloud Firestore collections
-      await withFirestoreRetry(() => setDoc(doc(firestoreDb, 'users', student.id), updatedStudent, { merge: true }));
-      await withFirestoreRetry(() => setDoc(doc(firestoreDb, 'gameResults', newResult.id), newResult));
-      await withFirestoreRetry(() => setDoc(doc(firestoreDb, 'xpHistory', newXpEntry.id), newXpEntry));
+      // Write directly to Cloud Firestore REST
+      await fsSetDoc('users', student.id, updatedStudent);
+      await fsSetDoc('gameResults', newResult.id, newResult);
+      await fsSetDoc('xpHistory', newXpEntry.id, newXpEntry);
       await logAudit(
         'XP_UPDATE',
         admin.email,
@@ -983,22 +887,11 @@ app.use(async (req, res, next) => {
   // GAME RESULTS (Official List)
   app.get('/api/admin/game-results', async (req, res) => {
     try {
-      let snap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'gameResults')));
-      if (snap.empty) {
+      let results = (await fsGetCollection('gameResults')) as GameResult[];
+      if (results.length === 0) {
         await ensureSchemaAndInitialData();
-        snap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'gameResults')));
+        results = (await fsGetCollection('gameResults')) as GameResult[];
       }
-
-      const results: GameResult[] = [];
-      snap.forEach((d) => {
-        const data = d.data() as any;
-        if (data) {
-          results.push({
-            id: d.id,
-            ...data
-          } as GameResult);
-        }
-      });
 
       results.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
       res.json({ gameResults: results });
@@ -1022,14 +915,12 @@ app.use(async (req, res, next) => {
         return res.status(400).json({ error: 'resultId and voidReason are required' });
       }
 
-      const resultDocRef = doc(firestoreDb, 'gameResults', resultId);
-      const resultSnap = await withFirestoreRetry(() => getDoc(resultDocRef));
+      const result = (await fsGetDoc('gameResults', resultId)) as GameResult | null;
 
-      if (!resultSnap.exists()) {
+      if (!result) {
         return res.status(404).json({ error: 'Game result record not found' });
       }
 
-      const result = resultSnap.data() as GameResult;
       if (result.isVoided) {
         return res.status(400).json({ error: 'This game result has already been voided' });
       }
@@ -1057,16 +948,12 @@ app.use(async (req, res, next) => {
           losses: newLosses
         };
 
-        await withFirestoreRetry(() => setDoc(doc(firestoreDb, 'users', student.id), updatedStudent, { merge: true }));
+        await fsSetDoc('users', student.id, updatedStudent);
       }
 
       // Mark result as voided
-      await withFirestoreRetry(() =>
-        updateDoc(resultDocRef, {
-          isVoided: true,
-          voidReason
-        })
-      );
+      const updatedResult = { ...result, isVoided: true, voidReason };
+      await fsSetDoc('gameResults', resultId, updatedResult);
 
       const voidXpEntry: XpHistoryEntry = {
         id: 'xp_void_' + Date.now(),
@@ -1079,7 +966,7 @@ app.use(async (req, res, next) => {
         createdAt: new Date().toISOString()
       };
 
-      await withFirestoreRetry(() => setDoc(doc(firestoreDb, 'xpHistory', voidXpEntry.id), voidXpEntry));
+      await fsSetDoc('xpHistory', voidXpEntry.id, voidXpEntry);
       await logAudit(
         'RESULT_VOID',
         admin.email,
@@ -1101,22 +988,11 @@ app.use(async (req, res, next) => {
   // XP HISTORY (Full Log from Firestore)
   app.get(['/api/xp/history', '/api/admin/xp-history'], async (req, res) => {
     try {
-      let snap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'xpHistory')));
-      if (snap.empty) {
+      let history = (await fsGetCollection('xpHistory')) as XpHistoryEntry[];
+      if (history.length === 0) {
         await ensureSchemaAndInitialData();
-        snap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'xpHistory')));
+        history = (await fsGetCollection('xpHistory')) as XpHistoryEntry[];
       }
-
-      const history: XpHistoryEntry[] = [];
-      snap.forEach((d) => {
-        const data = d.data() as any;
-        if (data) {
-          history.push({
-            id: d.id,
-            ...data
-          } as XpHistoryEntry);
-        }
-      });
 
       history.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
       res.json({ xpHistory: history });
@@ -1133,9 +1009,7 @@ app.use(async (req, res, next) => {
       if (!admin) {
         return res.status(403).json({ error: '403 / Access Denied: Admin authorization required' });
       }
-      const snap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'auditLogs')));
-      const logs: AuditLogEntry[] = [];
-      snap.forEach((d) => logs.push(d.data() as AuditLogEntry));
+      const logs = (await fsGetCollection('auditLogs')) as AuditLogEntry[];
       logs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       res.json({ auditLogs: logs });
     } catch (err) {
@@ -1147,16 +1021,10 @@ app.use(async (req, res, next) => {
   app.get('/api/admin/analytics', async (req, res) => {
     try {
       const students = await getAllStudentsFromFirestore();
-      const resultsSnap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'gameResults')));
-      const validResults: GameResult[] = [];
-      resultsSnap.forEach((d) => {
-        const r = d.data() as GameResult;
-        if (!r.isVoided) validResults.push(r);
-      });
+      const allResults = (await fsGetCollection('gameResults')) as GameResult[];
+      const validResults = allResults.filter((r) => !r.isVoided);
 
-      const xpSnap = await withFirestoreRetry(() => getDocs(collection(firestoreDb, 'xpHistory')));
-      const xpHistory: XpHistoryEntry[] = [];
-      xpSnap.forEach((d) => xpHistory.push(d.data() as XpHistoryEntry));
+      const xpHistory = (await fsGetCollection('xpHistory')) as XpHistoryEntry[];
       xpHistory.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       const totalParticipants = students.length;
