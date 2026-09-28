@@ -19,9 +19,8 @@ import {
   orderBy,
   limit
 } from 'firebase/firestore';
-import { createServer as createViteServer } from 'vite';
-import { User, GameResult, XpHistoryEntry, AuditLogEntry, RankTier, EventGame } from './src/types.js';
-import { calculateRankTier } from './src/server/seedData.js';
+import { User, GameResult, XpHistoryEntry, AuditLogEntry, RankTier, EventGame } from './src/types';
+import { calculateRankTier } from './src/server/seedData';
 
 dotenv.config({ path: ['.env', 'env'] });
 setLogLevel('error');
@@ -1215,6 +1214,7 @@ app.use(async (req, res, next) => {
     const startLocalServer = async () => {
       await ensureSchemaAndInitialData();
       if (process.env.NODE_ENV !== 'production') {
+        const { createServer: createViteServer } = await import('vite');
         const vite = await createViteServer({
           server: { middlewareMode: true },
           appType: 'spa'
