@@ -1083,20 +1083,11 @@ app.use(async (req, res, next) => {
   if (!isVercel && isDirectRun) {
     const startLocalServer = async () => {
       await ensureSchemaAndInitialData();
-      if (process.env.NODE_ENV !== 'production') {
-        const { createServer: createViteServer } = await import('vite');
-        const vite = await createViteServer({
-          server: { middlewareMode: true },
-          appType: 'spa'
-        });
-        app.use(vite.middlewares);
-      } else {
-        const distPath = path.join(process.cwd(), 'dist');
-        app.use(express.static(distPath));
-        app.get('*', (req, res) => {
-          res.sendFile(path.join(distPath, 'index.html'));
-        });
-      }
+      const distPath = path.join(process.cwd(), 'dist');
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
 
       app.listen(PORT, () => {
         console.log(`🎮 Gaming Arena College Leaderboard Server running on http://localhost:${PORT}`);
