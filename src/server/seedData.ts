@@ -1,5 +1,5 @@
-import { User, GameResult, XpHistoryEntry, AuditLogEntry, RankTier } from '../types.js';
-import { calculateRankTier } from '../data/games.js';
+import { User, GameResult, XpHistoryEntry, AuditLogEntry, RankTier } from '../types';
+import { calculateRankTier } from '../data/games';
 
 export { calculateRankTier };
 
