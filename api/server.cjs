@@ -1032,7 +1032,9 @@ app.get("/api/admin/analytics", async (req, res) => {
   }
 });
 var server_default = app;
-if (!process.env.VERCEL) {
+var isVercel = Boolean(process.env.VERCEL || process.env.NOW_BUILDER || process.env.VERCEL_ENV);
+var isDirectRun = Boolean(process.argv[1]?.endsWith("server.ts") || process.env.START_SERVER === "true");
+if (!isVercel && isDirectRun) {
   const startLocalServer = async () => {
     await ensureSchemaAndInitialData();
     if (process.env.NODE_ENV !== "production") {

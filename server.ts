@@ -1207,8 +1207,10 @@ app.use(async (req, res, next) => {
   // Export Express app for Vercel Serverless Functions
   export default app;
 
-  // Startup configuration for local environments
-  if (!process.env.VERCEL) {
+  // Startup configuration for local environments (only when executed directly)
+  const isVercel = Boolean(process.env.VERCEL || process.env.NOW_BUILDER || process.env.VERCEL_ENV);
+  const isDirectRun = Boolean(process.argv[1]?.endsWith('server.ts') || process.env.START_SERVER === 'true');
+  if (!isVercel && isDirectRun) {
     const startLocalServer = async () => {
       await ensureSchemaAndInitialData();
       if (process.env.NODE_ENV !== 'production') {
